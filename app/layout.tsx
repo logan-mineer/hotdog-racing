@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
-import Script from 'next/script'
 import { Analytics } from '@vercel/analytics/react'
 import Nav from '@/components/Nav'
 import Footer from '@/components/Footer'
@@ -37,8 +36,6 @@ export const metadata: Metadata = {
   },
 }
 
-const themeScript = `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})();`
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -47,11 +44,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
-        <Script id="theme-init" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: themeScript }} />
         <Nav />
         <main className="flex-1">{children}</main>
         <Footer />

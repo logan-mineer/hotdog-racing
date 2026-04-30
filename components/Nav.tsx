@@ -12,11 +12,16 @@ const tools = [
 export default function Nav() {
   const [toolsOpen, setToolsOpen] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return document.documentElement.classList.contains('dark')
-  })
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Restore manually stored theme override from a previous session
+  useEffect(() => {
+    const stored = localStorage.getItem('theme')
+    if (stored === 'dark' || stored === 'light') {
+      document.documentElement.classList.remove('dark', 'light')
+      document.documentElement.classList.add(stored)
+    }
+  }, [])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -29,10 +34,14 @@ export default function Nav() {
   }, [])
 
   function toggleTheme() {
-    const next = !isDark
-    setIsDark(next)
-    document.documentElement.classList.toggle('dark', next)
-    localStorage.setItem('theme', next ? 'dark' : 'light')
+    const root = document.documentElement
+    const isDark =
+      root.classList.contains('dark') ||
+      (!root.classList.contains('light') && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    const next = isDark ? 'light' : 'dark'
+    root.classList.remove('dark', 'light')
+    root.classList.add(next)
+    localStorage.setItem('theme', next)
   }
 
   return (
@@ -92,11 +101,11 @@ export default function Nav() {
           <button
             onClick={toggleTheme}
             aria-label="Toggle dark mode"
-            suppressHydrationWarning
             className="rounded p-2 transition-colors hover:text-accent"
             style={{ color: 'var(--muted)' }}
           >
-            {isDark ? <SunIcon /> : <MoonIcon />}
+            <span className="theme-icon-moon"><MoonIcon /></span>
+            <span className="theme-icon-sun"><SunIcon /></span>
           </button>
 
           {/* Mobile hamburger */}

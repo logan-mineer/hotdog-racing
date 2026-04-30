@@ -20,6 +20,7 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Light defaults */
 :root {
   --background: #F5F5F5;
   --foreground: #0D0D0D;
@@ -29,7 +30,20 @@
   --muted: #737373;
 }
 
-.dark {
+/* System dark preference, unless manually overridden to light */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --background: #0D0D0D;
+    --foreground: #F5F5F5;
+    --surface: #1a1a1a;
+    --surface-2: #262626;
+    --border: #333333;
+    --muted: #8a8a8a;
+  }
+}
+
+/* Manual dark override */
+:root.dark {
   --background: #0D0D0D;
   --foreground: #F5F5F5;
   --surface: #1a1a1a;
@@ -38,9 +52,31 @@
   --muted: #8a8a8a;
 }
 
+/* Manual light override (for system-dark users who prefer light) */
+:root.light {
+  --background: #F5F5F5;
+  --foreground: #0D0D0D;
+  --surface: #ffffff;
+  --surface-2: #ebebeb;
+  --border: #d4d4d4;
+  --muted: #737373;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
+
+/* Theme toggle icons — CSS controls which is visible, no JS state needed */
+.theme-icon-sun { display: none; }
+.theme-icon-moon { display: block; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .theme-icon-sun { display: block; }
+  :root:not(.light) .theme-icon-moon { display: none; }
+}
+
+:root.dark .theme-icon-sun { display: block; }
+:root.dark .theme-icon-moon { display: none; }
