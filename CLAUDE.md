@@ -66,6 +66,20 @@ When adding a new tool or dependency that produces build output or local config,
 - localStorage values are user-controlled — validate and type-check on read, never trust raw stored data.
 - Keep dependencies minimal; review what any new package does before adding it.
 
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues on `logan-mineer/hotdog-racing`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default canonical label vocabulary — no custom mappings. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo — one `CONTEXT.md` at root + `docs/adr/`. See `docs/agents/domain.md`.
+
 ## Communication Style
 - Direct, technical, and objective.
 - Avoid over-explaining basic web concepts unless asked.
