@@ -15,6 +15,26 @@ You are an AI collaborator on hotdog-racing.com. Before writing any code or maki
 - Shared components go in `components/`
 - Tool-specific logic (calculations, geometry, config schemas) goes in `lib/[tool-name]/`
 - Each new tool should have a spec at `docs/[tool-name]-spec.md` before implementation begins
+- Blog posts go in `content/posts/[slug].md` as Markdown with frontmatter (title, date, slug, description)
+
+## Testing & Verification
+
+- **Type checking:** TypeScript compilation is the first line of defense — run `tsc --noEmit` before opening a PR.
+- **Linting:** ESLint (configured by Next.js) — run `npm run lint` before opening a PR.
+- **Unit tests:** All functions in `lib/` must have unit tests using Vitest. This is where the math lives — wrong geometry or timing calculations won't be caught visually.
+  - Test files live alongside the source: `lib/suspension/geometry.test.ts`
+  - Cover normal cases, boundary values, and known-bad inputs.
+- **Visual/functional verification:** Vercel preview URL on every PR. Check the feature in the browser before merging.
+- **No component tests or E2E tests** in v1 — overhead not justified for a personal project at this stage.
+
+## Git Strategy
+
+- **Branching:** One feature branch per meaningful piece of work. Branch from `main`, merge back via PR.
+- **Naming:** `feat/` for new features and pages, `fix/` for bugs, `chore/` for maintenance, `content/` for content-only changes (blog posts, events, sponsors).
+  - Examples: `feat/global-layout`, `feat/home-page`, `content/first-blog-post`, `fix/nav-mobile`
+- **Merging:** Check the Vercel preview URL on the PR. If it looks right, merge. No formal review process needed.
+- **Commits:** Descriptive, present-tense messages. One logical change per commit where possible.
+- `main` is protected — all changes go through PRs, no direct pushes.
 
 ## Deployment
 
