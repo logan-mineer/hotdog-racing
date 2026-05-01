@@ -40,7 +40,7 @@ A personal hub for the RC drift community. The site combines static content (abo
 ### Static Content
 | Route | Purpose |
 |---|---|
-| `/` | Home — Hero → Featured Tools → Latest Podcast Episode → Instagram feed → Sponsors → Latest Blog Posts |
+| `/` | Home — Hero → Featured Tools → Social (Latest Episode + Instagram profile card) → Sponsors → Latest Blog Posts |
 | `/about` | Who Logan is, RC background and resume |
 | `/podcast` | Full episode list pulled from YouTube channel |
 | `/events` | Upcoming and past events — self-managed static config |
@@ -135,9 +135,7 @@ YouTube channel: `@yadmah` (https://www.youtube.com/@yadmah). Channel URL and AP
 
 ## Instagram Integration
 
-Home page displays Instagram content via the official Instagram profile embed widget. The embed loads client-side via `embed.js` (using `next/script` with `strategy="lazyOnload"`) and always reflects the current profile without any API tokens or token refresh.
-
-No environment variables required. No API dependency — Meta shut down the Instagram Basic Display API in December 2024.
+Home page displays a static Instagram profile card alongside the latest YouTube episode in a two-column Social section. The card shows the handle, a short description, and a follow CTA linking to the profile. No API, no embed widget, no tokens — styled to match the design system.
 
 ---
 
