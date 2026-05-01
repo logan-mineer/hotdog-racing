@@ -15,7 +15,7 @@ Infer the repo from `git remote -v` — `gh` does this automatically when run in
 
 ## When a skill says "publish to the issue tracker"
 
-Create a GitHub issue.
+Create a GitHub issue. Always apply the `needs-triage` label so the issue enters the normal triage flow — this is required whether the issue is created by a skill or manually. If you encounter an open issue that is missing a triage label entirely, apply `needs-triage` before acting on it.
 
 ## When a skill says "fetch the relevant ticket"
 
