@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Sponsors from '@/components/Sponsors'
 
 export default function Home() {
   return (
@@ -178,14 +179,7 @@ function SponsorsSection() {
     <section className="py-20 px-6" style={{ background: 'var(--surface)' }}>
       <div className="mx-auto max-w-7xl">
         <SectionHeader label="Partners" title="Sponsors" />
-        <div
-          className="mt-10 flex min-h-24 items-center justify-center rounded-lg border"
-          style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
-        >
-          <p className="font-mono text-sm" style={{ color: 'var(--muted)' }}>
-            — Sponsors coming soon —
-          </p>
-        </div>
+        <Sponsors />
       </div>
     </section>
   )
