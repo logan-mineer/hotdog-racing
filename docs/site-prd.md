@@ -135,9 +135,9 @@ YouTube channel: `@yadmah` (https://www.youtube.com/@yadmah). Channel URL and AP
 
 ## Instagram Integration
 
-Home page displays a grid of the latest 6–9 Instagram posts pulled via the Instagram Basic Display API. Fetched at build time (static) to keep page performance fast. Token refresh is handled via a Vercel cron job or manual redeployment when the token expires (tokens last 60 days).
+Home page displays Instagram content via the official Instagram profile embed widget. The embed loads client-side via `embed.js` (using `next/script` with `strategy="lazyOnload"`) and always reflects the current profile without any API tokens or token refresh.
 
-Instagram handle and access token stored in environment variables — never committed to the repo.
+No environment variables required. No API dependency — Meta shut down the Instagram Basic Display API in December 2024.
 
 ---
 
