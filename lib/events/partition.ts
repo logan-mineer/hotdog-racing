@@ -1,4 +1,4 @@
-import type { Event } from './config'
+import type { Event } from './ical'
 
 export function partitionEvents(
   events: Event[],

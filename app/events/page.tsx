@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
-import { events, type Event } from '@/lib/events/config'
+import { fetchEvents, type Event } from '@/lib/events/ical'
 import { partitionEvents } from '@/lib/events/partition'
+
+export const revalidate = 86400
 
 export const metadata: Metadata = {
   title: 'Events',
@@ -12,14 +14,32 @@ export const metadata: Metadata = {
   },
 }
 
-export default function EventsPage() {
-  const { upcoming, past } = partitionEvents(events, new Date())
+export default async function EventsPage() {
+  const url = process.env.ICAL_URL
+  if (!url) throw new Error('ICAL_URL environment variable is not set')
+
+  let upcoming: Event[] = []
+  let past: Event[] = []
+  let fetchError: string | null = null
+
+  try {
+    const events = await fetchEvents(url)
+    ;({ upcoming, past } = partitionEvents(events, new Date()))
+  } catch (err) {
+    fetchError = err instanceof Error ? err.message : 'Failed to load events'
+  }
 
   return (
     <>
       <HeroSection />
-      <UpcomingSection events={upcoming} />
-      <PastSection events={past} />
+      {fetchError ? (
+        <ErrorSection message={fetchError} />
+      ) : (
+        <>
+          <UpcomingSection events={upcoming} />
+          <PastSection events={past} />
+        </>
+      )}
     </>
   )
 }
@@ -32,6 +52,18 @@ function HeroSection() {
         <h1 className="text-4xl font-bold tracking-tight text-near-white sm:text-5xl">Events</h1>
         <p className="mt-4 text-base leading-relaxed text-near-white/70">
           Competitions, matsuri, and series rounds — where you&apos;ll find me on the track.
+        </p>
+      </div>
+    </section>
+  )
+}
+
+function ErrorSection({ message }: { message: string }) {
+  return (
+    <section className="py-20 px-6">
+      <div className="mx-auto max-w-3xl">
+        <p className="font-mono text-sm" style={{ color: 'var(--muted)' }}>
+          Could not load events: {message}
         </p>
       </div>
     </section>
@@ -85,7 +117,7 @@ function EventCard({ event }: { event: Event }) {
       style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
     >
       <div className="shrink-0 font-mono text-xs font-semibold text-accent sm:w-28 sm:pt-0.5">
-        {formatDate(event.date)}
+        {formatDateRange(event.date, event.endDate)}
       </div>
       <div className="min-w-0">
         <div className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>
@@ -106,11 +138,21 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', {
-    timeZone: 'UTC',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
+function formatDateRange(start: string, end?: string): string {
+  const s = new Date(start + 'T00:00:00Z')
+  if (!end) {
+    return s.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' })
+  }
+  const e = new Date(end + 'T00:00:00Z')
+  const sameYear = s.getUTCFullYear() === e.getUTCFullYear()
+  const sameMonth = sameYear && s.getUTCMonth() === e.getUTCMonth()
+  const fmt = (d: Date, opts: Intl.DateTimeFormatOptions) =>
+    d.toLocaleDateString('en-US', { timeZone: 'UTC', ...opts })
+  if (sameMonth) {
+    return `${fmt(s, { month: 'short', day: 'numeric' })}–${fmt(e, { day: 'numeric' })}, ${s.getUTCFullYear()}`
+  }
+  if (sameYear) {
+    return `${fmt(s, { month: 'short', day: 'numeric' })} – ${fmt(e, { month: 'short', day: 'numeric' })}, ${s.getUTCFullYear()}`
+  }
+  return `${fmt(s, { month: 'short', day: 'numeric', year: 'numeric' })} – ${fmt(e, { month: 'short', day: 'numeric', year: 'numeric' })}`
 }

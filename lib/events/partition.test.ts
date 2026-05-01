@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { partitionEvents } from './partition'
-import type { Event } from './config'
+import type { Event } from './ical'
 
 const events: Event[] = [
   { name: 'Far Future', date: '2026-06-01', location: 'Portland, OR', series: 'Series A' },
