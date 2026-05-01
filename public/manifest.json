@@ -1,0 +1,23 @@
+{
+  "name": "Hotdog Racing",
+  "short_name": "Hotdog Racing",
+  "description": "Setup tools and content for RC drift.",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#FF0020",
+  "background_color": "#0D0D0D",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
