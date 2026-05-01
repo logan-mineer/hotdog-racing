@@ -4,7 +4,7 @@ const BYPASS_COOKIE = 'hr_preview'
 const COMING_SOON_PATH = '/coming-soon'
 
 export function middleware(req: NextRequest) {
-  if (process.env.COMING_SOON !== 'true') return NextResponse.next()
+  if (process.env.COMING_SOON !== 'true' || process.env.VERCEL_ENV !== 'production') return NextResponse.next()
 
   const { pathname } = req.nextUrl
 
@@ -15,6 +15,8 @@ export function middleware(req: NextRequest) {
     const res = NextResponse.redirect(new URL('/', req.url))
     res.cookies.set(BYPASS_COOKIE, '1', {
       httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 7,
     })
