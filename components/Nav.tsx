@@ -91,6 +91,7 @@ export default function Nav() {
               )}
             </div>
 
+            <NavLink href="/events">Events</NavLink>
             <NavLink href="/podcast">Podcast</NavLink>
             <NavLink href="/blog">Blog</NavLink>
             <NavLink href="/about">About</NavLink>
@@ -136,6 +137,7 @@ export default function Nav() {
                   <span className="text-accent">All Tools →</span>
                 </MobileNavLink>
               </div>
+              <MobileNavLink href="/events" onClick={() => setMobileOpen(false)}>Events</MobileNavLink>
               <MobileNavLink href="/podcast" onClick={() => setMobileOpen(false)}>Podcast</MobileNavLink>
               <MobileNavLink href="/blog" onClick={() => setMobileOpen(false)}>Blog</MobileNavLink>
               <MobileNavLink href="/about" onClick={() => setMobileOpen(false)}>About</MobileNavLink>
