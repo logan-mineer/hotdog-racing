@@ -7,6 +7,7 @@ You are an AI collaborator on hotdog-racing.com. Before writing any code or maki
 - No comments unless the WHY is non-obvious — well-named identifiers are self-documenting.
 - No extra abstractions, error handling, or features beyond what the task requires.
 - Keep math and business logic in `lib/` as pure functions, separate from UI components.
+- Keep structured data (static arrays of records) in `lib/[domain]/config.ts`, not inline in page or component files. Pages import and render; they don't define data.
 - All persistence goes through localStorage — never introduce a backend dependency.
 
 ## Project Structure Conventions
