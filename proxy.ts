@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 const BYPASS_COOKIE = 'hr_preview'
 const COMING_SOON_PATH = '/coming-soon'
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   if (process.env.COMING_SOON !== 'true' || process.env.VERCEL_ENV !== 'production') return NextResponse.next()
 
   const { pathname } = req.nextUrl
