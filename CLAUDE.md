@@ -30,8 +30,8 @@ You are an AI collaborator on hotdog-racing.com. Before writing any code or maki
 ## Git Strategy
 
 - **Branching:** One feature branch per meaningful piece of work. Branch from `main`, merge back via PR.
-- **Naming:** `feat/` for new features and pages, `fix/` for bugs, `chore/` for maintenance, `content/` for content-only changes (blog posts, events, sponsors).
-  - Examples: `feat/global-layout`, `feat/home-page`, `content/first-blog-post`, `fix/nav-mobile`
+- **Naming:** `feat/` for new features and pages, `fix/` for bugs, `chore/` for maintenance, `content/` for content-only changes (blog posts, events, sponsors), `docs/` for documentation and workflow changes (no issue required).
+  - Examples: `feat/global-layout`, `feat/home-page`, `content/first-blog-post`, `fix/nav-mobile`, `docs/issue-workflow`
 - **Merging:** Check the Vercel preview URL on the PR. If it looks right, merge. No formal review process needed.
 - **Commits:** Descriptive, present-tense messages. One logical change per commit where possible.
 - `main` is protected — all changes go through PRs, no direct pushes.
@@ -67,6 +67,10 @@ When adding a new tool or dependency that produces build output or local config,
 - Keep dependencies minimal; review what any new package does before adding it.
 
 ## Agent skills
+
+### Issue workflow
+
+The standard process for triaging and implementing issues is documented in `docs/agents/issue-workflow.md`. Read this before starting any issue work.
 
 ### Issue tracker
 
