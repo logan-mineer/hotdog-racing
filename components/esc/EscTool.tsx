@@ -5,12 +5,18 @@ import {
   BOOST_END_RPM,
   BOOST_START_RPM,
   BOOST_TIMING,
+  DRIVE_FREQUENCY_KHZ,
+  FREE_ZONE_ADJUST,
+  INITIAL_SPEED,
   MOTOR_CAN_TIMING,
   MOTOR_TURN,
   REV_LIMIT_RPM,
+  THROTTLE_CURVE,
   TURBO_TIMING,
 } from '@/lib/esc/config'
+import type { ThrottleCurveMode } from '@/lib/esc/config'
 import { effectiveTiming, motorKV, torquePowerCurve } from '@/lib/esc/model'
+import ThrottleChart from './ThrottleChart'
 import TimingChart from './TimingChart'
 
 type Tab = 'timing' | 'throttle' | 'braking'
@@ -39,12 +45,28 @@ const TIMING_DEFAULTS: TimingState = {
   revLimitRPM: REV_LIMIT_RPM.defaultValue,
 }
 
+type ThrottleState = {
+  initialSpeed: number
+  freeZoneAdjust: number
+  throttleCurve: ThrottleCurveMode
+  driveFrequency: number
+}
+
+const THROTTLE_DEFAULTS: ThrottleState = {
+  initialSpeed: INITIAL_SPEED.defaultValue,
+  freeZoneAdjust: FREE_ZONE_ADJUST.defaultValue,
+  throttleCurve: THROTTLE_CURVE.defaultValue,
+  driveFrequency: DRIVE_FREQUENCY_KHZ.defaultValue,
+}
+
 const LS_KEY = 'esc-tool-settings'
 
 export default function EscTool() {
   const [tab, setTab] = useState<Tab>('timing')
   const [timing, setTiming] = useState<TimingState>(TIMING_DEFAULTS)
+  const [throttle, setThrottleState] = useState<ThrottleState>(THROTTLE_DEFAULTS)
   const skipFirstWrite = useRef(true)
+  const skipFirstThrottleWrite = useRef(true)
 
   // Restore from localStorage on mount
   useEffect(() => {
@@ -89,8 +111,52 @@ export default function EscTool() {
     }
   }, [timing])
 
+  // Restore throttle state from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, unknown>
+        if (parsed.throttle && typeof parsed.throttle === 'object') {
+          const t = parsed.throttle as Record<string, unknown>
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setThrottleState(prev => ({
+            ...prev,
+            ...(typeof t.initialSpeed === 'number' ? { initialSpeed: t.initialSpeed } : {}),
+            ...(typeof t.freeZoneAdjust === 'number' ? { freeZoneAdjust: t.freeZoneAdjust } : {}),
+            ...(t.throttleCurve === 'negative' || t.throttleCurve === 'linear' || t.throttleCurve === 'positive'
+              ? { throttleCurve: t.throttleCurve }
+              : {}),
+            ...(typeof t.driveFrequency === 'number' ? { driveFrequency: t.driveFrequency } : {}),
+          }))
+        }
+      }
+    } catch {
+      // ignore malformed storage
+    }
+  }, [])
+
+  // Persist throttle state to localStorage on change
+  useEffect(() => {
+    if (skipFirstThrottleWrite.current) {
+      skipFirstThrottleWrite.current = false
+      return
+    }
+    try {
+      const existing = localStorage.getItem(LS_KEY)
+      const current = existing ? (JSON.parse(existing) as Record<string, unknown>) : {}
+      localStorage.setItem(LS_KEY, JSON.stringify({ ...current, throttle }))
+    } catch {
+      // ignore
+    }
+  }, [throttle])
+
   function set<K extends keyof TimingState>(key: K, value: TimingState[K]) {
     setTiming(prev => ({ ...prev, [key]: value }))
+  }
+
+  function setThrottle<K extends keyof ThrottleState>(key: K, value: ThrottleState[K]) {
+    setThrottleState(prev => ({ ...prev, [key]: value }))
   }
 
   const kv = Math.round(motorKV(timing.motorTurn))
@@ -127,6 +193,12 @@ export default function EscTool() {
     )
     return { rpm: Math.round(peakPower.rpm), deg: Math.round(deg * 10) / 10 }
   }, [chartParams, timing.motorCanTiming, timing.boostTiming, timing.boostStartRPM, timing.boostEndRPM, timing.turboTiming, timing.turboActive])
+
+  const throttleChartParams = useMemo(() => ({
+    initialSpeed: throttle.initialSpeed,
+    freeZoneAdjust: throttle.freeZoneAdjust,
+    throttleCurve: throttle.throttleCurve,
+  }), [throttle.initialSpeed, throttle.freeZoneAdjust, throttle.throttleCurve])
 
   const tabs: Tab[] = ['timing', 'throttle', 'braking']
 
@@ -289,17 +361,110 @@ export default function EscTool() {
           </div>
         )}
 
-        {/* Placeholder tabs */}
-        {(tab === 'throttle' || tab === 'braking') && (
+        {/* Throttle tab */}
+        {tab === 'throttle' && (
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+            {/* Parameter panel */}
+            <div
+              className="w-full shrink-0 rounded-lg border p-5 lg:w-80"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+            >
+              <Slider
+                label="Initial Speed"
+                value={throttle.initialSpeed}
+                min={INITIAL_SPEED.min}
+                max={INITIAL_SPEED.max}
+                step={INITIAL_SPEED.step}
+                display={v => `${v}%`}
+                onChange={v => setThrottle('initialSpeed', v)}
+              />
+              <Slider
+                label="Free Zone Adjust"
+                value={throttle.freeZoneAdjust}
+                min={FREE_ZONE_ADJUST.min}
+                max={FREE_ZONE_ADJUST.max}
+                step={FREE_ZONE_ADJUST.step}
+                display={v => `${v}%`}
+                onChange={v => setThrottle('freeZoneAdjust', v)}
+              />
+
+              {/* Throttle curve selector */}
+              <div className="mb-5">
+                <span className="mb-2 block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+                  Throttle Curve
+                </span>
+                <div className="flex gap-2">
+                  {THROTTLE_CURVE.options.map(mode => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setThrottle('throttleCurve', mode)}
+                      className="flex-1 rounded py-2 text-xs font-semibold capitalize transition-colors"
+                      style={{
+                        background: throttle.throttleCurve === mode ? '#FF0020' : 'transparent',
+                        color: throttle.throttleCurve === mode ? '#fff' : 'var(--foreground)',
+                        border: '1px solid',
+                        borderColor: throttle.throttleCurve === mode ? '#FF0020' : 'var(--border)',
+                      }}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
+                  {throttle.throttleCurve === 'negative' && 'Soft start, aggressive top-end'}
+                  {throttle.throttleCurve === 'linear' && 'Direct 1:1 stick-to-power response'}
+                  {throttle.throttleCurve === 'positive' && 'Aggressive start, soft top-end'}
+                </p>
+              </div>
+
+              {/* Drive frequency selector */}
+              <div className="mb-5">
+                <div className="mb-2 flex items-baseline justify-between">
+                  <span className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+                    Drive Frequency
+                  </span>
+                  <span className="font-mono text-sm" style={{ color: 'var(--foreground)' }}>
+                    {throttle.driveFrequency} kHz
+                  </span>
+                </div>
+                <select
+                  value={throttle.driveFrequency}
+                  onChange={e => setThrottle('driveFrequency', Number(e.target.value))}
+                  className="w-full rounded border px-3 py-2 font-mono text-sm"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--foreground)' }}
+                >
+                  {DRIVE_FREQUENCY_KHZ.options.map(f => (
+                    <option key={f} value={f}>{f} kHz</option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
+                  Lower = punchier / less smooth · Higher = smoother / more RPM / more heat
+                </p>
+              </div>
+            </div>
+
+            {/* Chart */}
+            <div
+              className="relative h-72 flex-1 overflow-hidden rounded-lg border sm:h-96"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+            >
+              <ThrottleChart params={throttleChartParams} />
+            </div>
+          </div>
+        )}
+
+        {/* Braking tab placeholder */}
+        {tab === 'braking' && (
           <div
-            className="rounded-lg border p-12 text-center capitalize"
+            className="rounded-lg border p-12 text-center"
             style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
           >
             <p className="mb-2 font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--muted)' }}>
               Coming next
             </p>
             <p className="text-sm" style={{ color: 'var(--muted)' }}>
-              {tab} curve — in progress.
+              Brake curve — in progress.
             </p>
           </div>
         )}
