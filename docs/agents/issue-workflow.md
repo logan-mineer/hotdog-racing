@@ -77,6 +77,20 @@ Wait for the user's approval before proceeding.
 
 Once the user approves, commit the changes and open a PR referencing the issue (e.g. `Closes #10`). The PR description should include what was built and any notable decisions. The Vercel preview URL will be available on the PR for final visual verification.
 
+## Amending a spec mid-project
+
+When new problems or ideas surface during development — from the user, from testing, or from implementation discoveries — follow this sequence:
+
+1. **Reframe as a problem**, not a solution. "Users can't tell X" rather than "add feature Y." The user's original phrasing often contains an implied solution — strip it out and state the underlying problem clearly.
+2. **Discuss the approach.** For each problem, explore how it could be solved before committing to anything. What are the options? What are the tradeoffs? What fits the project's constraints and aesthetic? Do this without anchoring to how the user originally described the idea — their list is a starting point, not a spec. Reach explicit agreement on the approach before writing anything down.
+3. **Identify the right spec.** Does this belong in `docs/site-prd.md`, an existing tool spec (`docs/[tool]-prd.md`), or does it need a new spec? If no spec exists for the area, create one before proceeding.
+4. **Update the spec.** Add the agreed approach as a requirement in the relevant spec document. The spec is the source of truth — it must reflect considered decisions, not just a reformatted to-do list.
+5. **Then create issues.** Issues derive from the spec. An issue that isn't anchored to a spec entry will drift and become hard to evaluate or prioritize.
+
+**Never create issues for new work without first completing steps 1–4.** If you skip the discussion step, you risk building the wrong thing — just faster.
+
+---
+
 ## Creating issues outside of `/to-issues`
 
 When creating a GitHub issue manually (e.g. to track a bug, a model fix, or a UI slice that emerged during implementation), always apply labels immediately after creation — never leave an issue unlabeled.
