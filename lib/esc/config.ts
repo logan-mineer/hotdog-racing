@@ -10,6 +10,28 @@ export type SelectDef<T extends string | number> = {
   defaultValue: T
 }
 
+// Rotor variants — kvScale relative to LV30 (standard).
+// KV ∝ 1/flux, so stronger magnets lower KV and raise stall torque by the same factor.
+// Scale factors assume LV numbers are proportional to rotor flux; refine once real specs available.
+export type RotorVariant = 'lv30' | 'lv38' | 'lv42'
+
+export type RotorVariantDef = {
+  label: string
+  kvScale: number
+  description: string
+}
+
+export const ROTOR_VARIANTS: Record<RotorVariant, RotorVariantDef> = {
+  lv30: { label: 'LV30', kvScale: 1.000,     description: 'Standard' },
+  lv38: { label: 'LV38', kvScale: 30 / 38,   description: 'Mid torque' },
+  lv42: { label: 'LV42', kvScale: 30 / 42,   description: 'High torque' },
+}
+
+export const ROTOR_VARIANT: SelectDef<RotorVariant> = {
+  options: ['lv30', 'lv38', 'lv42'],
+  defaultValue: 'lv30',
+}
+
 // Timing tab
 export const MOTOR_TURN: SliderDef = { min: 4.5, max: 21.5, step: 0.5, defaultValue: 10.5 }
 export const MOTOR_CAN_TIMING: SliderDef = { min: 0, max: 30, step: 1, defaultValue: 0 }
