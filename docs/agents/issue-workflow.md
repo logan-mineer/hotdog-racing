@@ -76,3 +76,17 @@ Wait for the user's approval before proceeding.
 ### 9. Commit and open a PR
 
 Once the user approves, commit the changes and open a PR referencing the issue (e.g. `Closes #10`). The PR description should include what was built and any notable decisions. The Vercel preview URL will be available on the PR for final visual verification.
+
+## Creating issues outside of `/to-issues`
+
+When creating a GitHub issue manually (e.g. to track a bug, a model fix, or a UI slice that emerged during implementation), always apply labels immediately after creation — never leave an issue unlabeled.
+
+Every issue needs two labels:
+1. **Type** — `enhancement` for new features, `bug` for defects
+2. **Triage state** — one of `needs-triage`, `ready-for-agent`, `ready-for-human`, `needs-info`, or `wontfix`
+
+Apply `ready-for-agent` directly (skipping `needs-triage`) only when the issue is fully specified with clear acceptance criteria. Apply `needs-triage` when the scope or approach still needs evaluation.
+
+```
+gh issue edit <number> --add-label "enhancement,ready-for-agent"
+```
