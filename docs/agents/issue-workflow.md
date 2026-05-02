@@ -77,6 +77,19 @@ Wait for the user's approval before proceeding.
 
 Once the user approves, commit the changes and open a PR referencing the issue (e.g. `Closes #10`). The PR description should include what was built and any notable decisions. The Vercel preview URL will be available on the PR for final visual verification.
 
+## Amending a spec mid-project
+
+When new problems or ideas surface during development — from the user, from testing, or from implementation discoveries — follow this sequence:
+
+1. **Reframe as a problem**, not a solution. "Users can't tell X" rather than "add feature Y." Keep solution space open.
+2. **Identify the right spec.** Does this belong in `docs/site-prd.md`, an existing tool spec (`docs/[tool]-prd.md`), or does it need a new spec? If no spec exists for the area, create one before proceeding.
+3. **Update the spec first.** Add the problem as a requirement in the relevant spec document. This is the source of truth — the spec must reflect the full intended scope before any issue is created.
+4. **Then create issues.** Issues derive from the spec. An issue that isn't anchored to a spec entry will drift and become hard to evaluate or prioritize.
+
+**Never create issues for new work without first updating the relevant spec.** If you skip this step, the spec and the tracker will diverge and the spec loses its value as a source of truth.
+
+---
+
 ## Creating issues outside of `/to-issues`
 
 When creating a GitHub issue manually (e.g. to track a bug, a model fix, or a UI slice that emerged during implementation), always apply labels immediately after creation — never leave an issue unlabeled.

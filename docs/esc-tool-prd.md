@@ -18,6 +18,14 @@ Each tab contains a parameter panel (sliders and selectors) and a D3.js chart. O
 
 All slider values auto-save to localStorage on change and restore on page load.
 
+### Chart interactions (all tabs)
+
+Every D3 chart must support a hover tooltip:
+- On mouse hover (or touch drag on mobile), a tooltip appears anchored to the cursor's x-position
+- Tooltip displays the x-axis value (RPM or throttle %) and all y-axis values at that position (e.g. torque %, power % on the Timing tab)
+- Tooltip follows the cursor and must not clip outside chart bounds
+- A vertical hairline at the cursor x-position helps read values off the curve
+
 ---
 
 ## Tab 1: Timing
@@ -32,16 +40,19 @@ Show how motor can timing, boost timing, and turbo timing interact to shift the 
 - Y-axis left: Torque (normalized, 0–100%)
 - Y-axis right: Power (normalized, 0–100%)
 - Two curves on the same chart: torque (solid) and power (dashed)
+- A persistent 0° timing reference curve (all timing parameters at zero) is always visible as a muted/dashed background line, regardless of current settings — gives users a baseline to compare against
 - Vertical line at `rev_limit_rpm` if enabled
 - When turbo toggle is ON: primary curves show boost + turbo state; a faded ghost of the boost-only curves stays visible behind them
+- Y-axis left (torque) scales dynamically — upper bound expands to fit the maximum torque value produced by current settings; the curve must never be clipped at the top
 
 The curve is not static — it **bends** through the boost RPM zone because effective timing changes with RPM. Below `boost_start_rpm` the curve reflects base timing only. Through the boost ramp zone it transitions. Above `boost_end_rpm` it reflects full boost timing.
 
 ### Live Readout
-A prominent numeric display showing **total timing at peak power RPM**:
-`motor_can_timing + boost_timing (at that RPM) + turbo_timing (if toggled)`
+A prominent numeric display with three metrics, all updating continuously as sliders move:
 
-Updates continuously as sliders move.
+- **Total timing at peak power RPM** — `motor_can_timing + boost_timing (at that RPM) + turbo_timing (if toggled)`
+- **Total cumulative timing** — the area under the `θ_total(rpm)` curve across the full RPM range; represents aggregate timing exposure across the power band
+- **Peak RPM** — the RPM at which the power curve reaches its maximum for the current settings and rotor variant
 
 ### Parameters
 
@@ -198,6 +209,29 @@ components/esc/
 ```
 
 Components own rendering only. All curve data is computed in `lib/esc/model.ts` and passed in as props.
+
+---
+
+## Real-World Validation
+
+The math model is physically motivated but unvalidated against measured data. The goal is to close this gap by testing the actual reference hardware (Acuvance Xarvis XX + Agile 10.5T, 2S) and calibrating the model where it diverges from reality.
+
+### Process
+
+1. **Draft a test plan** — document what to measure (peak RPM at minimum), how to measure it (optical tachometer, ESC telemetry, or video analysis), which settings to vary, and what data to record. This phase can be completed by an agent.
+2. **Run the tests** — owner runs the physical tests on the car and records measurements.
+3. **Calibrate** — compare measurements against model output at matching parameter values; adjust constants in `lib/esc/model.ts` where the model diverges meaningfully from reality.
+
+### What to measure (minimum)
+
+- Peak no-load RPM at various can timing values (0°, 10°, 20°, 30°) with boost and turbo off
+- Peak no-load RPM at several boost timing values with fixed can timing
+
+These data points are sufficient to validate `RPM_max(θ)` — the most consequential output of the model.
+
+### Calibration target
+
+The model should predict peak RPM within ~10% of measured values across the tested parameter range. Constants to tune: the `0.007` timing multiplier in `RPM_max(θ)` and the `RPM_noload_base` calculation.
 
 ---
 

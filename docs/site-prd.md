@@ -40,7 +40,7 @@ A personal hub for the RC drift community. The site combines static content (abo
 ### Static Content
 | Route | Purpose |
 |---|---|
-| `/` | Home — Hero → Featured Tools → Social (Latest Episode + Instagram profile card) → Sponsors → Latest Blog Posts |
+| `/` | Home — Hero → Featured Tools → Social (Latest Episode + Instagram profile card) → Sponsors → Latest Blog Posts. Tool cards must include a visual element (screenshot, icon, or illustration) — text-only cards are not sufficient. |
 | `/about` | Who Logan is, RC background and resume |
 | `/podcast` | Full episode list pulled from YouTube channel |
 | `/events` | Upcoming and past events — self-managed static config |
@@ -109,7 +109,8 @@ Visualize how gyro gain, gyro direction, and servo speed/endpoint settings affec
 - **Aesthetic:** Clean, technical, dark-mode friendly. Think tuning software, not a lifestyle blog. Pages should adopt a congruent global template.
 - **Color scheme:** Follows system preference (light/dark) by default. Manual toggle in the nav allows override.
 - **Palette:** Primary accent `#FF0020` with tints and shades. No pure black (`#000`) or pure white (`#fff`) — use near-black (e.g. `#0D0D0D`) and near-white (e.g. `#F5F5F5`) instead. Accent used for interactive elements: buttons, links, active nav, slider handles, highlights.
-- **Typography:** Geist Sans for content pages; Geist Mono for tool UIs, readouts, and numeric values. Both are bundled with Next.js via `create-next-app` — no extra dependency.
+- **Logo:** The Hotdog Racing logo is part of the brand identity and must appear in the site header/nav. It should also inform the favicon. Logo file (SVG preferred) to be provided by the owner before implementation.
+- **Typography:** Geist Sans for content pages; Geist Mono for tool UIs, readouts, and numeric values. Both are bundled with Next.js via `create-next-app` — no extra dependency. The "Hotdog" and "Racing" portions of the wordmark each have distinct brand fonts from the official style guide — these must be applied wherever the full wordmark appears (header, hero, OG images). Font files to be provided by the owner.
 - **Mobile-first:** Tools are designed for phone use at the track — touch-friendly controls, finger-sized tap targets, portrait-friendly layouts. Tablet and desktop are enhanced experiences, not the baseline.
 - **PWA:** Custom branded install prompt triggered after a user visits any tool page. Service worker caches all tool assets for full offline use. No login required — localStorage handles all persistence.
 
@@ -147,7 +148,7 @@ Dedicated `/events` page listing upcoming (and past) events. Data managed as a s
 
 ## Sponsors
 
-Dedicated section on the home page — sponsor logos with links to their websites. Also mentioned on the `/about` page. Sponsor data stored as a static JSON or TypeScript config file in the repo (name, logo, URL). Adding/removing a sponsor means updating that file and pushing to main.
+Dedicated section on the home page — sponsor logos with links to their websites. Also mentioned on the `/about` page. Sponsor data stored as a static JSON or TypeScript config file in the repo (name, logo, URL). Adding/removing a sponsor means updating that file and pushing to main. Every sponsor entry must be complete — name, logo file (SVG or optimized PNG), and URL are all required fields. Incomplete entries (missing logo or name) should not render. Sponsor logo files and brand names to be provided by the owner.
 
 ---
 
