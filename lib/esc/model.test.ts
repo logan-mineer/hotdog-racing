@@ -83,24 +83,15 @@ describe('torquePowerCurve', () => {
     boostEndRPM: 20000,
     turboTiming: 0,
     turboActive: false,
+    rotorKvScale: 1.0,
   }
 
   it('returns N+1 points', () => {
-    const pts = torquePowerCurve(baseParams, 200)
-    expect(pts).toHaveLength(201)
+    expect(torquePowerCurve(baseParams, 200)).toHaveLength(201)
   })
 
   it('first point starts at RPM 0', () => {
-    const pts = torquePowerCurve(baseParams)
-    expect(pts[0].rpm).toBe(0)
-  })
-
-  it('normalizes torque and power to 0–100 range', () => {
-    const pts = torquePowerCurve(baseParams)
-    const maxT = Math.max(...pts.map(p => p.torque))
-    const maxP = Math.max(...pts.map(p => p.power))
-    expect(maxT).toBeCloseTo(100, 5)
-    expect(maxP).toBeCloseTo(100, 5)
+    expect(torquePowerCurve(baseParams)[0].rpm).toBe(0)
   })
 
   it('all torque and power values are non-negative', () => {
@@ -111,6 +102,11 @@ describe('torquePowerCurve', () => {
     }
   })
 
+  it('stall torque is 100% at zero timing on LV30 (fixed reference baseline)', () => {
+    const pts = torquePowerCurve(baseParams)
+    expect(pts[0].torque).toBeCloseTo(100, 3)
+  })
+
   it('torque and power peaks occur at different RPM values', () => {
     const pts = torquePowerCurve(baseParams)
     const peakTorqueRPM = pts.reduce((best, p) => (p.torque > best.torque ? p : best)).rpm
@@ -118,42 +114,97 @@ describe('torquePowerCurve', () => {
     expect(peakPowerRPM).toBeGreaterThan(peakTorqueRPM)
   })
 
-  it('curve bends through boost zone — torque differs below vs above boostStartRPM when boost > 0', () => {
-    const withBoost = torquePowerCurve({
-      ...baseParams,
-      boostTiming: 30,
-      boostStartRPM: 5000,
-      boostEndRPM: 20000,
-    })
-    const noBoost = torquePowerCurve(baseParams)
+  it('peak power is ~100% at zero timing (fixed reference baseline)', () => {
+    const pts = torquePowerCurve(baseParams)
+    const maxP = Math.max(...pts.map(p => p.power))
+    expect(maxP).toBeCloseTo(100, 1)
+  })
 
-    // Above boost end RPM, withBoost should have a different (shifted) torque curve shape
+  describe('timing increases RPM and reduces stall torque', () => {
+    it('higher timing lowers stall torque below 100%', () => {
+      const highTiming = torquePowerCurve({ ...baseParams, motorCanTiming: 30, boostTiming: 10, turboTiming: 55, turboActive: true })
+      expect(highTiming[0].torque).toBeLessThan(100)
+    })
+
+    it('with real hardware settings stall torque reflects only active timing at RPM=0', () => {
+      // At RPM=0, boost hasn't ramped in (starts at 5000 RPM) — only can + turbo apply.
+      // theta = 30° + 0° + 55° = 85°; cos(85° × 0.75) = cos(63.75°) ≈ 0.442 → 44.2%
+      const pts = torquePowerCurve({ ...baseParams, motorCanTiming: 30, boostTiming: 10, turboTiming: 55, turboActive: true })
+      expect(pts[0].torque).toBeCloseTo(44.2, 0)
+    })
+
+    it('with real hardware settings (95°) peak RPM ceiling is ~100k', () => {
+      const pts = torquePowerCurve({ ...baseParams, motorCanTiming: 30, boostTiming: 10, turboTiming: 55, turboActive: true })
+      const lastNonZero = [...pts].reverse().find(p => p.torque > 0)!
+      expect(lastNonZero.rpm).toBeGreaterThan(90_000)
+      expect(lastNonZero.rpm).toBeLessThan(115_000)
+    })
+
+    it('peak power is conserved — timing redistributes power, does not create it', () => {
+      const noTiming = torquePowerCurve(baseParams)
+      const highTiming = torquePowerCurve({ ...baseParams, motorCanTiming: 30, boostTiming: 10, turboTiming: 55, turboActive: true })
+      const peakNoTiming = Math.max(...noTiming.map(p => p.power))
+      const peakHighTiming = Math.max(...highTiming.map(p => p.power))
+      // Both should peak near 100% — field weakening conserves max power
+      expect(peakNoTiming).toBeCloseTo(100, 1)
+      expect(peakHighTiming).toBeCloseTo(100, 1)
+    })
+
+    it('higher timing shifts peak power to a higher RPM', () => {
+      const noTiming = torquePowerCurve(baseParams)
+      const highTiming = torquePowerCurve({ ...baseParams, motorCanTiming: 30 })
+      const peakRPMNoTiming = noTiming.reduce((best, p) => (p.power > best.power ? p : best)).rpm
+      const peakRPMHighTiming = highTiming.reduce((best, p) => (p.power > best.power ? p : best)).rpm
+      expect(peakRPMHighTiming).toBeGreaterThan(peakRPMNoTiming)
+    })
+  })
+
+  describe('rotor variants', () => {
+    it('LV42 (kvScale=30/42) has higher stall torque than LV30 at same timing', () => {
+      const lv30 = torquePowerCurve({ ...baseParams, rotorKvScale: 1.0 })
+      const lv42 = torquePowerCurve({ ...baseParams, rotorKvScale: 30 / 42 })
+      expect(lv42[0].torque).toBeGreaterThan(lv30[0].torque)
+    })
+
+    it('LV42 has lower RPM ceiling than LV30 at same timing', () => {
+      const lv30 = torquePowerCurve({ ...baseParams, rotorKvScale: 1.0 })
+      const lv42 = torquePowerCurve({ ...baseParams, rotorKvScale: 30 / 42 })
+      const lastNonZeroLV30 = [...lv30].reverse().find(p => p.torque > 0)!
+      const lastNonZeroLV42 = [...lv42].reverse().find(p => p.torque > 0)!
+      expect(lastNonZeroLV42.rpm).toBeLessThan(lastNonZeroLV30.rpm)
+    })
+
+    it('all rotor variants conserve peak power near 100%', () => {
+      for (const kvScale of [1.0, 30 / 38, 30 / 42]) {
+        const pts = torquePowerCurve({ ...baseParams, rotorKvScale: kvScale })
+        const maxP = Math.max(...pts.map(p => p.power))
+        expect(maxP).toBeCloseTo(100, 1)
+      }
+    })
+
+    it('LV38 stall torque is between LV30 and LV42', () => {
+      const lv30 = torquePowerCurve({ ...baseParams, rotorKvScale: 1.0 })[0].torque
+      const lv38 = torquePowerCurve({ ...baseParams, rotorKvScale: 30 / 38 })[0].torque
+      const lv42 = torquePowerCurve({ ...baseParams, rotorKvScale: 30 / 42 })[0].torque
+      expect(lv38).toBeGreaterThan(lv30)
+      expect(lv42).toBeGreaterThan(lv38)
+    })
+  })
+
+  it('turboActive=true shifts peak power to higher RPM than turboActive=false', () => {
+    const withTurbo = torquePowerCurve({ ...baseParams, turboTiming: 40, turboActive: true })
+    const noTurbo = torquePowerCurve({ ...baseParams, turboTiming: 40, turboActive: false })
+    const peakTurboRPM = withTurbo.reduce((best, p) => (p.power > best.power ? p : best)).rpm
+    const peakNoTurboRPM = noTurbo.reduce((best, p) => (p.power > best.power ? p : best)).rpm
+    expect(peakTurboRPM).toBeGreaterThan(peakNoTurboRPM)
+  })
+
+  it('curve bends through boost zone when boost timing > 0', () => {
+    const withBoost = torquePowerCurve({ ...baseParams, boostTiming: 30, boostStartRPM: 5000, boostEndRPM: 20000 })
+    const noBoost = torquePowerCurve(baseParams)
     const aboveBoostIdx = withBoost.findIndex(p => p.rpm > 20000)
     expect(aboveBoostIdx).toBeGreaterThan(0)
-
-    // The curves should differ in the above-boost region
-    const withBoostAbove = withBoost[aboveBoostIdx].torque
-    const noBoostAbove = noBoost[aboveBoostIdx].torque
-    expect(withBoostAbove).not.toBeCloseTo(noBoostAbove, 0)
-  })
-
-  it('turboActive=true produces a higher peak RPM ceiling than turboActive=false', () => {
-    const withTurbo = torquePowerCurve({ ...baseParams, turboTiming: 40, turboActive: true })
-    const noTurbo = torquePowerCurve({ ...baseParams, turboTiming: 40, turboActive: false })
-
-    // With turbo: effective timing is higher everywhere → RPM_max is higher → torque reaches 0 at higher RPM
-    const lastNonZeroTurbo = [...withTurbo].reverse().find(p => p.torque > 0)!
-    const lastNonZeroNoTurbo = [...noTurbo].reverse().find(p => p.torque > 0)!
-    expect(lastNonZeroTurbo.rpm).toBeGreaterThan(lastNonZeroNoTurbo.rpm)
-  })
-
-  it('turboActive=true produces a broader curve shape than turboActive=false', () => {
-    const withTurbo = torquePowerCurve({ ...baseParams, turboTiming: 40, turboActive: true })
-    const noTurbo = torquePowerCurve({ ...baseParams, turboTiming: 40, turboActive: false })
-    // Turbo extends RPM ceiling; at the same absolute RPM index the turbo curve retains
-    // more torque because it hasn't fallen as far toward its (higher) zero-crossing.
-    const midIdx = Math.floor(withTurbo.length / 2)
-    expect(withTurbo[midIdx].torque).toBeGreaterThan(noTurbo[midIdx].torque)
+    expect(withBoost[aboveBoostIdx].torque).not.toBeCloseTo(noBoost[aboveBoostIdx].torque, 0)
   })
 })
 
