@@ -9,9 +9,17 @@ type Props = {
   params: TorquePowerParams
   revLimitEnabled: boolean
   revLimitRPM: number
+  accentColor?: string
+  ghostColor?: string
 }
 
-export default function TimingChart({ params, revLimitEnabled, revLimitRPM }: Props) {
+export default function TimingChart({
+  params,
+  revLimitEnabled,
+  revLimitRPM,
+  accentColor = '#FF0020',
+  ghostColor,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
@@ -29,6 +37,7 @@ export default function TimingChart({ params, revLimitEnabled, revLimitRPM }: Pr
       const innerH = height - margin.top - margin.bottom
 
       const live = torquePowerCurve(params)
+      const ref = torquePowerCurve({ ...params, motorCanTiming: 0, boostTiming: 0, turboTiming: 0, turboActive: false })
       const ghost = params.turboActive ? torquePowerCurve({ ...params, turboActive: false }) : null
       const maxRPM = live[live.length - 1].rpm
 
@@ -105,24 +114,40 @@ export default function TimingChart({ params, revLimitEnabled, revLimitRPM }: Pr
         .x(d => x(d.rpm))
         .y(d => yR(d.power))
 
-      // Ghost curves when turbo is active
-      if (ghost) {
+      // 0° timing reference — gray, solid torque + dashed power
+      g.append('path')
+        .datum(ref)
+        .attr('fill', 'none')
+        .attr('d', torqueLine)
+        .style('stroke', 'var(--muted)')
+        .style('stroke-width', '1.5')
+        .style('stroke-opacity', '0.55')
+
+      g.append('path')
+        .datum(ref)
+        .attr('fill', 'none')
+        .attr('d', powerLine)
+        .style('stroke', 'var(--muted)')
+        .style('stroke-width', '1.5')
+        .style('stroke-opacity', '0.55')
+        .style('stroke-dasharray', '6 3')
+
+      // No-turbo ghost — complement color, solid torque + dashed power
+      if (ghost && ghostColor) {
         g.append('path')
           .datum(ghost)
           .attr('fill', 'none')
           .attr('d', torqueLine)
-          .style('stroke', 'var(--muted)')
+          .style('stroke', ghostColor)
           .style('stroke-width', '1.5')
-          .style('stroke-opacity', '0.3')
 
         g.append('path')
           .datum(ghost)
           .attr('fill', 'none')
           .attr('d', powerLine)
-          .style('stroke', 'var(--muted)')
+          .style('stroke', ghostColor)
           .style('stroke-width', '1.5')
-          .style('stroke-opacity', '0.3')
-          .style('stroke-dasharray', '5 3')
+          .style('stroke-dasharray', '6 3')
       }
 
       // Rev limit vertical line
@@ -132,7 +157,7 @@ export default function TimingChart({ params, revLimitEnabled, revLimitRPM }: Pr
           .attr('x2', x(revLimitRPM))
           .attr('y1', 0)
           .attr('y2', innerH)
-          .style('stroke', '#FF0020')
+          .style('stroke', accentColor)
           .style('stroke-width', '1.5')
           .style('stroke-dasharray', '4 3')
           .style('stroke-opacity', '0.7')
@@ -143,7 +168,7 @@ export default function TimingChart({ params, revLimitEnabled, revLimitRPM }: Pr
         .datum(live)
         .attr('fill', 'none')
         .attr('d', torqueLine)
-        .style('stroke', '#FF0020')
+        .style('stroke', accentColor)
         .style('stroke-width', '2')
 
       // Live power (dashed)
@@ -151,7 +176,7 @@ export default function TimingChart({ params, revLimitEnabled, revLimitRPM }: Pr
         .datum(live)
         .attr('fill', 'none')
         .attr('d', powerLine)
-        .style('stroke', '#FF0020')
+        .style('stroke', accentColor)
         .style('stroke-width', '2')
         .style('stroke-dasharray', '6 3')
     }
@@ -160,7 +185,7 @@ export default function TimingChart({ params, revLimitEnabled, revLimitRPM }: Pr
     const ro = new ResizeObserver(draw)
     ro.observe(container)
     return () => ro.disconnect()
-  }, [params, revLimitEnabled, revLimitRPM])
+  }, [params, revLimitEnabled, revLimitRPM, accentColor, ghostColor])
 
   return (
     <div ref={containerRef} className="w-full h-full">

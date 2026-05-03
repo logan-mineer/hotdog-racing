@@ -23,6 +23,7 @@ import {
 } from '@/lib/esc/config'
 import type { RotorVariant, ThrottleCurveMode } from '@/lib/esc/config'
 import { effectiveTiming, motorKV, torquePowerCurve } from '@/lib/esc/model'
+import { accentToGhost, readSurfaceColor } from '@/lib/esc/colors'
 import BrakeChart from './BrakeChart'
 import ThrottleChart from './ThrottleChart'
 import TimingChart from './TimingChart'
@@ -86,6 +87,7 @@ const BRAKE_DEFAULTS: BrakeState = {
 }
 
 const LS_KEY = 'esc-tool-settings'
+const ACCENT_COLOR = '#FF0020'
 
 export default function EscTool() {
   const [tab, setTab] = useState<Tab>('timing')
@@ -95,6 +97,19 @@ export default function EscTool() {
   const skipFirstWrite = useRef(true)
   const skipFirstThrottleWrite = useRef(true)
   const skipFirstBrakeWrite = useRef(true)
+
+  const [ghostColor, setGhostColor] = useState('')
+  useEffect(() => {
+    function compute() {
+      setGhostColor(accentToGhost(ACCENT_COLOR, readSurfaceColor()))
+    }
+    compute()
+    const observer = new MutationObserver(compute)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    mq.addEventListener('change', compute)
+    return () => { observer.disconnect(); mq.removeEventListener('change', compute) }
+  }, [])
 
   // Restore from localStorage on mount
   useEffect(() => {
@@ -448,21 +463,37 @@ export default function EscTool() {
                 <div className="absolute right-3 top-3 z-10 flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">
                     <svg width="20" height="2" viewBox="0 0 20 2" aria-hidden>
-                      <line x1="0" y1="1" x2="20" y2="1" stroke="#FF0020" strokeWidth="2" />
+                      <line x1="0" y1="1" x2="20" y2="1" stroke={ACCENT_COLOR} strokeWidth="2" />
                     </svg>
                     <span className="font-mono text-xs" style={{ color: 'var(--muted)' }}>Torque</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <svg width="20" height="2" viewBox="0 0 20 2" aria-hidden>
-                      <line x1="0" y1="1" x2="20" y2="1" stroke="#FF0020" strokeWidth="2" strokeDasharray="6 3" />
+                      <line x1="0" y1="1" x2="20" y2="1" stroke={ACCENT_COLOR} strokeWidth="2" strokeDasharray="6 3" />
                     </svg>
                     <span className="font-mono text-xs" style={{ color: 'var(--muted)' }}>Power</span>
+                  </div>
+                  {timing.turboActive && ghostColor && (
+                    <div className="flex items-center gap-2">
+                      <svg width="20" height="2" viewBox="0 0 20 2" aria-hidden>
+                        <line x1="0" y1="1" x2="20" y2="1" stroke={ghostColor} strokeWidth="1.5" />
+                      </svg>
+                      <span className="font-mono text-xs" style={{ color: 'var(--muted)' }}>No turbo</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <svg width="20" height="2" viewBox="0 0 20 2" aria-hidden>
+                      <line x1="0" y1="1" x2="20" y2="1" stroke="var(--muted)" strokeWidth="1.5" strokeOpacity="0.55" />
+                    </svg>
+                    <span className="font-mono text-xs" style={{ color: 'var(--muted)' }}>0° ref</span>
                   </div>
                 </div>
                 <TimingChart
                   params={chartParams}
                   revLimitEnabled={timing.revLimitEnabled}
                   revLimitRPM={timing.revLimitRPM}
+                  accentColor={ACCENT_COLOR}
+                  ghostColor={ghostColor}
                 />
               </div>
             </div>
