@@ -60,6 +60,15 @@ export type TorquePowerParams = {
 
 export type TorquePowerPoint = { rpm: number; torque: number; power: number }
 
+export function cumulativeTiming(params: TorquePowerParams): number {
+  return params.motorCanTiming + params.boostTiming + (params.turboActive ? params.turboTiming : 0)
+}
+
+export function peakRPM(params: TorquePowerParams): number {
+  const rpmBase = motorKV(params.motorTurn) * (params.rotorKvScale ?? 1.0) * VOLTAGE_2S
+  return rpmBase / Math.cos(fieldAngle(cumulativeTiming(params)))
+}
+
 export function torquePowerCurve(params: TorquePowerParams, N = 200): TorquePowerPoint[] {
   const kvBase = motorKV(params.motorTurn)
   const rotorKvScale = params.rotorKvScale ?? 1.0

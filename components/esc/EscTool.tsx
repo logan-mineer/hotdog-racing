@@ -22,7 +22,7 @@ import {
   TURBO_TIMING,
 } from '@/lib/esc/config'
 import type { RotorVariant, ThrottleCurveMode } from '@/lib/esc/config'
-import { effectiveTiming, motorKV, torquePowerCurve } from '@/lib/esc/model'
+import { cumulativeTiming, effectiveTiming, motorKV, peakRPM, torquePowerCurve } from '@/lib/esc/model'
 import { accentToGhost, readSurfaceColor } from '@/lib/esc/colors'
 import BrakeChart from './BrakeChart'
 import ThrottleChart from './ThrottleChart'
@@ -280,7 +280,12 @@ export default function EscTool() {
       timing.turboTiming,
       timing.turboActive,
     )
-    return { rpm: Math.round(peakPower.rpm), deg: Math.round(deg * 10) / 10 }
+    return {
+      rpm: Math.round(peakPower.rpm),
+      deg: Math.round(deg * 10) / 10,
+      cumulativeDeg: cumulativeTiming(chartParams),
+      peakRPM: Math.round(peakRPM(chartParams)),
+    }
   }, [chartParams, timing.motorCanTiming, timing.boostTiming, timing.boostStartRPM, timing.boostEndRPM, timing.turboTiming, timing.turboActive])
 
   const throttleChartParams = useMemo(() => ({
@@ -440,18 +445,36 @@ export default function EscTool() {
             <div className="flex flex-1 flex-col gap-4">
               {/* Live readout */}
               <div
-                className="rounded-lg border px-5 py-4"
+                className="grid grid-cols-1 overflow-hidden rounded-lg border sm:grid-cols-3"
                 style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
               >
-                <p className="mb-0.5 font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--muted)' }}>
-                  Total timing at peak power
-                </p>
-                <p className="font-mono text-3xl font-bold" style={{ color: 'var(--foreground)' }}>
-                  {liveReadout.deg}°
-                  <span className="ml-3 font-mono text-sm font-normal" style={{ color: 'var(--muted)' }}>
-                    @ {(liveReadout.rpm / 1000).toFixed(1)}k RPM
-                  </span>
-                </p>
+                <div className="border-b px-5 py-4 sm:border-b-0 sm:border-r" style={{ borderColor: 'var(--border)' }}>
+                  <p className="mb-0.5 font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--muted)' }}>
+                    Timing @ peak power
+                  </p>
+                  <p className="font-mono text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
+                    {liveReadout.deg}°
+                    <span className="ml-2 font-mono text-xs font-normal" style={{ color: 'var(--muted)' }}>
+                      @ {(liveReadout.rpm / 1000).toFixed(1)}k
+                    </span>
+                  </p>
+                </div>
+                <div className="border-b px-5 py-4 sm:border-b-0 sm:border-r" style={{ borderColor: 'var(--border)' }}>
+                  <p className="mb-0.5 font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--muted)' }}>
+                    Cumulative timing
+                  </p>
+                  <p className="font-mono text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
+                    {liveReadout.cumulativeDeg}°
+                  </p>
+                </div>
+                <div className="px-5 py-4">
+                  <p className="mb-0.5 font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--muted)' }}>
+                    Peak RPM
+                  </p>
+                  <p className="font-mono text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
+                    {(liveReadout.peakRPM / 1000).toFixed(1)}k
+                  </p>
+                </div>
               </div>
 
               {/* Chart */}
