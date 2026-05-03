@@ -80,3 +80,18 @@ body {
 
 :root.dark .theme-icon-sun { display: block; }
 :root.dark .theme-icon-moon { display: none; }
+
+@keyframes hero-grid-scroll {
+  from { background-position: 0 0; }
+  to { background-position: 0 60px; }
+}
+
+@keyframes hero-road-scroll {
+  from { transform: translateY(0); }
+  to { transform: translateY(600px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-grid-floor,
+  .hero-road { animation: none !important; }
+}
