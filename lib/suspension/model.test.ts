@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { computeGeometry, computeTrail, computeScrubRadius } from './model'
+import {
+  computeGeometry,
+  computeTrail,
+  computeScrubRadius,
+  computeAckermanDelta,
+  computeMaxSteeringLock,
+} from './model'
+import type { SteeringSnapshot } from './model'
 import {
   CHASSIS_BASELINE,
   LOWER_ARM_LENGTH,
@@ -9,10 +16,14 @@ import {
   WHEEL_HEX_THICKNESS,
   WHEEL_OFFSET,
   TIRE_OD,
+  CARRIER_HEIGHT,
+  CARRIER_TIE_ROD_INBOARD_OFFSET,
+  STEERING_RACK_FORE_AFT,
 } from './config'
-import type { ChassisBaseline } from './config'
+import type { ChassisBaseline, RackType } from './config'
+import type { Setup } from './model'
 
-const DEFAULTS = {
+const DEFAULTS: Setup = {
   lowerArmLength: LOWER_ARM_LENGTH.defaultValue,
   tieRodLength: TIE_ROD_LENGTH.defaultValue,
   upperArmLength: UPPER_ARM_LENGTH.defaultValue,
@@ -20,6 +31,10 @@ const DEFAULTS = {
   wheelHexThicknessMm: WHEEL_HEX_THICKNESS.defaultValue,
   wheelOffsetMm: WHEEL_OFFSET.defaultValue,
   tireOD: TIRE_OD.defaultValue,
+  carrierHeightMm: CARRIER_HEIGHT.defaultValue,
+  carrierTieRodInboardOffsetMm: CARRIER_TIE_ROD_INBOARD_OFFSET.defaultValue,
+  steeringRackForeAftMm: STEERING_RACK_FORE_AFT.defaultValue,
+  steeringRackType: 'direct-drive' as RackType,
 }
 
 describe('computeGeometry — camber', () => {
@@ -324,6 +339,139 @@ describe('computeGeometry — upper arm', () => {
     const shortArm = computeGeometry({ ...DEFAULTS, upperArmLength: 40 })
     const longArm = computeGeometry({ ...DEFAULTS, upperArmLength: 50 })
     expect(shortArm.rear.camberDeg).not.toBeCloseTo(longArm.rear.camberDeg, 1)
+  })
+})
+
+describe('computeAckermanDelta + computeMaxSteeringLock', () => {
+  it('exposes finite, non-negative readouts at default geometry', () => {
+    const geo = computeGeometry({ ...DEFAULTS })
+    expect(Number.isFinite(geo.ackermanDeltaDeg)).toBe(true)
+    expect(Number.isFinite(geo.maxSteeringLock.degrees)).toBe(true)
+    expect(geo.ackermanDeltaDeg).toBeGreaterThanOrEqual(0)
+    expect(geo.maxSteeringLock.degrees).toBeGreaterThanOrEqual(0)
+  })
+
+  it('flags lock as blocked when chassis rack travel exceeds the linkage reach', () => {
+    // The default geometry's left-side tie rod cannot satisfy the 5mm chassis
+    // travel limit; the bridge clamps and reports blocked with the PRD message.
+    const geo = computeGeometry({ ...DEFAULTS })
+    expect(geo.maxSteeringLock.blocked).toBe(true)
+    expect(geo.maxSteeringLock.reason).toMatch(/pivot is outboard/)
+  })
+
+  it('does not flag blocked when both sides can reach the chassis travel limit', () => {
+    // Lengthening the tie rod past the default extends the linkage's reach
+    // envelope so both sides can satisfy the chassis-spec 5mm without binding.
+    const geo = computeGeometry({ ...DEFAULTS, tieRodLength: 45 })
+    expect(geo.maxSteeringLock.blocked).toBe(false)
+    expect(geo.maxSteeringLock.reason).toBe('')
+  })
+
+  it('reports parallel steering (Δ = 0°) when steering arms point straight rearward', () => {
+    // Synthetic linkage: each tie rod attach sits directly behind its kingpin
+    // (steering arms parallel to the chassis longitudinal axis). Two
+    // mirror-imaged rack balls translate identically with the rack, so each
+    // knuckle sees an identical change in the rack-to-kingpin distance and
+    // rotates by an identical magnitude — Ackerman delta = 0°.
+    const snapshot: SteeringSnapshot = {
+      rightKingpin: { x: 70, y: 0 },
+      rightBaselineAttach: { x: 70, y: -10 },
+      rightRackBall: { x: 40, y: -10 },
+      leftKingpin: { x: -70, y: 0 },
+      leftBaselineAttach: { x: -70, y: -10 },
+      leftRackBall: { x: -40, y: -10 },
+      tieRodLength: 30,
+      rackTravelMm: 1,
+      rackType: 'direct-drive',
+    }
+    const delta = computeAckermanDelta(snapshot)
+    expect(delta).toBeCloseTo(0, 2)
+  })
+
+  it('produces positive Ackerman delta for inboard-attach geometries (default chassis)', () => {
+    // The chassis baseline attaches the tie rod inboard and rearward of the
+    // kingpin (steering arm angled toward the rear axle), which is the
+    // textbook Ackermann linkage — inner wheel turns more than outer.
+    const geo = computeGeometry({ ...DEFAULTS })
+    expect(geo.ackermanDeltaDeg).toBeGreaterThan(0)
+  })
+
+  it('shifts Ackerman delta when carrier inboard offset changes', () => {
+    const moreInboard = computeGeometry({ ...DEFAULTS, carrierTieRodInboardOffsetMm: 2 })
+    const lessInboard = computeGeometry({ ...DEFAULTS, carrierTieRodInboardOffsetMm: -2 })
+    expect(moreInboard.ackermanDeltaDeg).not.toBeCloseTo(lessInboard.ackermanDeltaDeg, 1)
+  })
+
+  it('shifts max steering lock when steering rack moves fore/aft (changes effective steering arm)', () => {
+    const baseline = computeGeometry({ ...DEFAULTS })
+    const rackForward = computeGeometry({ ...DEFAULTS, steeringRackForeAftMm: 5 })
+    expect(rackForward.maxSteeringLock.degrees).not.toBeCloseTo(baseline.maxSteeringLock.degrees, 1)
+  })
+
+  it('reduces max lock when rack type is wiper vs. direct drive (effective travel scales by 0.9)', () => {
+    // With a longer tie rod the linkage no longer binds the rack travel, so
+    // the rack-type effective-travel factor becomes the dominant constraint:
+    // wiper at 0.9× delivers strictly less rotation than the linear racks.
+    const opts = { ...DEFAULTS, tieRodLength: 50 }
+    const direct = computeGeometry({ ...opts, steeringRackType: 'direct-drive' })
+    const slide = computeGeometry({ ...opts, steeringRackType: 'slide-rack' })
+    const wiper = computeGeometry({ ...opts, steeringRackType: 'wiper' })
+    expect(slide.maxSteeringLock.degrees).toBeCloseTo(direct.maxSteeringLock.degrees, 5)
+    expect(wiper.maxSteeringLock.degrees).toBeLessThan(direct.maxSteeringLock.degrees)
+  })
+
+  it('returns finite outputs across the rack-type space and sign-combinations of carrier/rack-fore-aft', () => {
+    const cases: Array<Partial<typeof DEFAULTS>> = [
+      { carrierTieRodInboardOffsetMm: -3 },
+      { carrierTieRodInboardOffsetMm: 3 },
+      { steeringRackForeAftMm: -10 },
+      { steeringRackForeAftMm: 10 },
+      { steeringRackType: 'wiper' },
+      { steeringRackType: 'slide-rack' },
+    ]
+    for (const c of cases) {
+      const geo = computeGeometry({ ...DEFAULTS, ...c })
+      expect(Number.isFinite(geo.ackermanDeltaDeg)).toBe(true)
+      expect(Number.isFinite(geo.maxSteeringLock.degrees)).toBe(true)
+    }
+  })
+})
+
+describe('computeMaxSteeringLock — direct bridge call', () => {
+  it('returns numeric lock for a clean reachable geometry', () => {
+    const snapshot: SteeringSnapshot = {
+      rightKingpin: { x: 70, y: 0 },
+      rightBaselineAttach: { x: 60, y: -10 },
+      rightRackBall: { x: 20, y: -10 },
+      leftKingpin: { x: -70, y: 0 },
+      leftBaselineAttach: { x: -60, y: -10 },
+      leftRackBall: { x: -20, y: -10 },
+      tieRodLength: 40,
+      rackTravelMm: 2,        // small enough that both sides reach
+      rackType: 'direct-drive',
+    }
+    const result = computeMaxSteeringLock(snapshot)
+    expect(result.blocked).toBe(false)
+    expect(result.degrees).toBeGreaterThan(0)
+    expect(result.reason).toBe('')
+  })
+
+  it('returns blocked + non-empty reason when chassis rack travel exceeds linkage reach', () => {
+    const snapshot: SteeringSnapshot = {
+      rightKingpin: { x: 70, y: 0 },
+      rightBaselineAttach: { x: 60, y: -10 },
+      rightRackBall: { x: 20, y: -10 },
+      leftKingpin: { x: -70, y: 0 },
+      leftBaselineAttach: { x: -60, y: -10 },
+      leftRackBall: { x: -20, y: -10 },
+      tieRodLength: 40,
+      rackTravelMm: 50,       // way beyond what the linkage can reach
+      rackType: 'direct-drive',
+    }
+    const result = computeMaxSteeringLock(snapshot)
+    expect(result.blocked).toBe(true)
+    expect(result.reason.length).toBeGreaterThan(0)
+    expect(Number.isFinite(result.degrees)).toBe(true)
   })
 })
 

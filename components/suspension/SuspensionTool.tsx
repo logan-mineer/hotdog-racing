@@ -9,6 +9,10 @@ import {
   WHEEL_HEX_THICKNESS,
   WHEEL_OFFSET,
   TIRE_OD,
+  CARRIER_HEIGHT,
+  CARRIER_TIE_ROD_INBOARD_OFFSET,
+  STEERING_RACK_FORE_AFT,
+  type RackType,
 } from '@/lib/suspension/config'
 import { computeGeometry } from '@/lib/suspension/model'
 import RearView from './RearView'
@@ -25,6 +29,10 @@ export default function SuspensionTool() {
   const [wheelHexThicknessMm, setWheelHexThicknessMm] = useState(WHEEL_HEX_THICKNESS.defaultValue)
   const [wheelOffsetMm, setWheelOffsetMm] = useState(WHEEL_OFFSET.defaultValue)
   const [tireOD, setTireOD] = useState(TIRE_OD.defaultValue)
+  const [carrierTieRodInboardOffsetMm, setCarrierTieRodInboardOffsetMm] = useState(CARRIER_TIE_ROD_INBOARD_OFFSET.defaultValue)
+  const [steeringRackForeAftMm, setSteeringRackForeAftMm] = useState(STEERING_RACK_FORE_AFT.defaultValue)
+  const [carrierHeightMm, setCarrierHeightMm] = useState(CARRIER_HEIGHT.defaultValue)
+  const [steeringRackType, setSteeringRackType] = useState<RackType>('direct-drive')
 
   const geometry = useMemo(
     () =>
@@ -36,8 +44,24 @@ export default function SuspensionTool() {
         wheelHexThicknessMm,
         wheelOffsetMm,
         tireOD,
+        carrierTieRodInboardOffsetMm,
+        steeringRackForeAftMm,
+        carrierHeightMm,
+        steeringRackType,
       }),
-    [lowerArmLength, tieRodLength, casterSpacerDeg, upperArmLength, wheelHexThicknessMm, wheelOffsetMm, tireOD],
+    [
+      lowerArmLength,
+      tieRodLength,
+      casterSpacerDeg,
+      upperArmLength,
+      wheelHexThicknessMm,
+      wheelOffsetMm,
+      tireOD,
+      carrierTieRodInboardOffsetMm,
+      steeringRackForeAftMm,
+      carrierHeightMm,
+      steeringRackType,
+    ],
   )
 
   return (
@@ -60,10 +84,18 @@ export default function SuspensionTool() {
             onWheelHexThicknessChange={setWheelHexThicknessMm}
             wheelOffsetMm={wheelOffsetMm}
             onWheelOffsetChange={setWheelOffsetMm}
+            carrierTieRodInboardOffsetMm={carrierTieRodInboardOffsetMm}
+            onCarrierTieRodInboardOffsetChange={setCarrierTieRodInboardOffsetMm}
+            steeringRackForeAftMm={steeringRackForeAftMm}
+            onSteeringRackForeAftChange={setSteeringRackForeAftMm}
             upperArmLength={upperArmLength}
             onUpperArmLengthChange={setUpperArmLength}
             tireOD={tireOD}
             onTireODChange={setTireOD}
+            carrierHeightMm={carrierHeightMm}
+            onCarrierHeightChange={setCarrierHeightMm}
+            steeringRackType={steeringRackType}
+            onSteeringRackTypeChange={setSteeringRackType}
           />
 
           <div className="flex flex-1 flex-col gap-4">
