@@ -11,7 +11,7 @@ type Props = {
 }
 
 export default function RearView({ geometry }: Props) {
-  const { rear, chassis } = geometry
+  const { rear, chassis, setup } = geometry
 
   // Right side as computed; left side is mirrored across the chassis centerline.
   const right = rear
@@ -129,7 +129,7 @@ export default function RearView({ geometry }: Props) {
           centerX={right.wheelCenter.x}
           centerY={right.wheelCenter.y}
           camberDeg={right.camberDeg}
-          tireOD={chassis.tireOD}
+          tireOD={setup.tireOD}
           tireWidth={chassis.tireWidth}
           rimDiameter={chassis.rimDiameter}
           rimWidth={chassis.rimWidth}
@@ -138,7 +138,7 @@ export default function RearView({ geometry }: Props) {
           centerX={left.wheelCenter.x}
           centerY={left.wheelCenter.y}
           camberDeg={left.camberDeg}
-          tireOD={chassis.tireOD}
+          tireOD={setup.tireOD}
           tireWidth={chassis.tireWidth}
           rimDiameter={chassis.rimDiameter}
           rimWidth={chassis.rimWidth}

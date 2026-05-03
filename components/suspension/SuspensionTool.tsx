@@ -6,6 +6,9 @@ import {
   TIE_ROD_LENGTH,
   CASTER_SPACER,
   UPPER_ARM_LENGTH,
+  WHEEL_HEX_THICKNESS,
+  WHEEL_OFFSET,
+  TIRE_OD,
 } from '@/lib/suspension/config'
 import { computeGeometry } from '@/lib/suspension/model'
 import RearView from './RearView'
@@ -19,10 +22,22 @@ export default function SuspensionTool() {
   const [tieRodLength, setTieRodLength] = useState(TIE_ROD_LENGTH.defaultValue)
   const [casterSpacerDeg, setCasterSpacerDeg] = useState(CASTER_SPACER.defaultValue)
   const [upperArmLength, setUpperArmLength] = useState(UPPER_ARM_LENGTH.defaultValue)
+  const [wheelHexThicknessMm, setWheelHexThicknessMm] = useState(WHEEL_HEX_THICKNESS.defaultValue)
+  const [wheelOffsetMm, setWheelOffsetMm] = useState(WHEEL_OFFSET.defaultValue)
+  const [tireOD, setTireOD] = useState(TIRE_OD.defaultValue)
 
   const geometry = useMemo(
-    () => computeGeometry({ lowerArmLength, tieRodLength, casterSpacerDeg, upperArmLength }),
-    [lowerArmLength, tieRodLength, casterSpacerDeg, upperArmLength],
+    () =>
+      computeGeometry({
+        lowerArmLength,
+        tieRodLength,
+        casterSpacerDeg,
+        upperArmLength,
+        wheelHexThicknessMm,
+        wheelOffsetMm,
+        tireOD,
+      }),
+    [lowerArmLength, tieRodLength, casterSpacerDeg, upperArmLength, wheelHexThicknessMm, wheelOffsetMm, tireOD],
   )
 
   return (
@@ -41,8 +56,14 @@ export default function SuspensionTool() {
             onTieRodLengthChange={setTieRodLength}
             casterSpacerDeg={casterSpacerDeg}
             onCasterSpacerChange={setCasterSpacerDeg}
+            wheelHexThicknessMm={wheelHexThicknessMm}
+            onWheelHexThicknessChange={setWheelHexThicknessMm}
+            wheelOffsetMm={wheelOffsetMm}
+            onWheelOffsetChange={setWheelOffsetMm}
             upperArmLength={upperArmLength}
             onUpperArmLengthChange={setUpperArmLength}
+            tireOD={tireOD}
+            onTireODChange={setTireOD}
           />
 
           <div className="flex flex-1 flex-col gap-4">

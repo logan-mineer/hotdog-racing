@@ -10,8 +10,11 @@ export type Point = { x: number; y: number }
 export type Setup = {
   lowerArmLength: number
   tieRodLength: number
-  upperArmLength: number     // chassis config in PRD; same data layer as setup in v1
-  casterSpacerDeg: number    // 0–15° spacer stack on upper hinge pin; sets caster directly in v1
+  upperArmLength: number          // chassis config in PRD; same data layer as setup in v1
+  casterSpacerDeg: number         // 0–15° spacer stack on upper hinge pin; sets caster directly in v1
+  wheelHexThicknessMm: number     // hub spacer between carrier and rim; always positive
+  wheelOffsetMm: number           // rim's lateral offset from its mounting face; signed
+  tireOD: number                  // chassis config in PRD; surfaced inline until #89
 }
 
 export type RearGeometry = {
@@ -44,9 +47,11 @@ export type TopGeometry = {
 export type Geometry = {
   rear: RearGeometry
   top: TopGeometry
-  chassis: ChassisBaseline  // exposed so renderers can size wheels, rims, etc.
+  chassis: ChassisBaseline   // exposed so renderers can size wheels, rims, etc.
+  setup: Setup               // exposed so renderers can read tireOD, hex/offset, etc.
   casterDeg: number          // side-plane kingpin tilt; v1 = casterSpacerDeg
   trailMm: number            // caster trail at the tire contact patch
+  scrubRadiusMm: number      // signed: positive = wheel contact outboard of kingpin axis at ground
 }
 
 // Intersect two circles in 2D. Returns the intersection point on the side
@@ -108,16 +113,23 @@ function computeRearGeometry(setup: Setup, chassis: ChassisBaseline): RearGeomet
   // Negative when upper ball is inboard of lower ball (top of wheel tilts in → negative camber by RC convention).
   const camberDeg = Math.atan2(dx, dy) * (180 / Math.PI)
   // KPI is the same physical kingpin angle but takes the opposite sign by
-  // convention (positive = top inboard). With zero scrub radius in v1 the
-  // wheel plane is co-planar with the kingpin axis, so KPI = -camber. They
-  // become independent once the scrub-radius slice (#82) decouples them.
+  // convention (positive = top inboard). The wheel plane is parallel to the
+  // kingpin axis (the carrier is rigid), so KPI = -camber holds even after
+  // wheel offset displaces the wheel center off the kingpin axis.
   const kpiDeg = -camberDeg
 
-  // Wheel center sits on the kingpin axis at the midpoint between the two balls in v1.
-  // Scrub-radius offset (lateral wheel offset from kingpin) lands in #82.
-  const wheelCenter: Point = {
+  // Wheel center sits at perpendicular offset (hex + wheelOffset) from the
+  // kingpin axis, on the outboard side (right wheel). Perpendicular outboard
+  // in the rear plane = the kingpin direction rotated -90°: (cos(camber), -sin(camber)).
+  const camberRad = (camberDeg * Math.PI) / 180
+  const lateralOffset = setup.wheelHexThicknessMm + setup.wheelOffsetMm
+  const kingpinMidpoint: Point = {
     x: (lowerOutboard.x + upperOutboard.x) / 2,
     y: (lowerOutboard.y + upperOutboard.y) / 2,
+  }
+  const wheelCenter: Point = {
+    x: kingpinMidpoint.x + lateralOffset * Math.cos(camberRad),
+    y: kingpinMidpoint.y - lateralOffset * Math.sin(camberRad),
   }
 
   return { lowerInboard, lowerOutboard, upperInboard, upperOutboard, wheelCenter, camberDeg, kpiDeg }
@@ -164,10 +176,13 @@ function computeTopGeometry(
   rear: RearGeometry,
   chassis: ChassisBaseline,
 ): TopGeometry {
-  // v1 top-view collapse: kingpin axis projects to a single point at the
-  // wheel center's lateral position. Forward sweep of the lower arm lands
-  // alongside steering state in #84.
-  const kingpin: Point = { x: rear.wheelCenter.x, y: 0 }
+  // v1 top-view collapse: the kingpin axis projects to a single point at the
+  // midpoint of the two kingpin balls — distinct from the wheel center once
+  // wheel offset displaces the rim laterally (#82). The knuckle's tie rod
+  // attach is rigid with the kingpin axis, so its top-view radius and
+  // baseline angle are measured around this midpoint.
+  const kingpinMidX = (rear.lowerOutboard.x + rear.upperOutboard.x) / 2
+  const kingpin: Point = { x: kingpinMidX, y: 0 }
   const baselineAttach: Point = {
     x: kingpin.x + chassis.knuckleTieRodOffsetX,
     y: kingpin.y + chassis.knuckleTieRodOffsetY,
@@ -219,10 +234,10 @@ function computeTopGeometry(
   }
 }
 
-// Caster trail at the tire contact patch. The full PRD signature carries KPI
-// and wheel offset, both of which contribute once scrub radius decouples the
-// wheel plane from the kingpin axis (#82). In v1 those terms are absorbed by
-// the zero-scrub assumption and the simple R·tan(caster) formula holds.
+// Caster trail at the tire contact patch. v1 uses the standard mechanical
+// trail formula R·tan(caster); the KPI and wheel-offset terms enter the full
+// 3D coupling but are second-order for typical RC drift values and are left
+// for a future refinement.
 export function computeTrail(
   casterDeg: number,
   _kpiDeg: number,
@@ -233,6 +248,24 @@ export function computeTrail(
   return (tireOD / 2) * Math.tan(casterRad)
 }
 
+// Scrub radius — signed lateral distance from the kingpin axis (where it
+// meets the ground) to the tire contact center. Positive = contact patch
+// outboard of kingpin. Derivation: wheel center sits perpendicular to the
+// kingpin by (hex + offset); contact center sits directly below wheel center
+// at height tireOD/2; the kingpin's lateral position at ground is the wheel
+// center offset by (hex+offset)/cos(KPI) inboard plus (tireOD/2)·tan(KPI)
+// outboard, leaving scrub = (hex+offset)/cos(KPI) − (tireOD/2)·tan(KPI).
+export function computeScrubRadius(
+  wheelOffsetMm: number,
+  hexThicknessMm: number,
+  kpiDeg: number,
+  tireOD: number,
+): number {
+  const kpiRad = (kpiDeg * Math.PI) / 180
+  const lateral = wheelOffsetMm + hexThicknessMm
+  return lateral / Math.cos(kpiRad) - (tireOD / 2) * Math.tan(kpiRad)
+}
+
 export function computeGeometry(
   setup: Setup,
   chassis: ChassisBaseline = CHASSIS_BASELINE,
@@ -240,6 +273,12 @@ export function computeGeometry(
   const rear = computeRearGeometry(setup, chassis)
   const top = computeTopGeometry(setup, rear, chassis)
   const casterDeg = setup.casterSpacerDeg
-  const trailMm = computeTrail(casterDeg, rear.kpiDeg, 0, chassis.tireOD)
-  return { rear, top, chassis, casterDeg, trailMm }
+  const trailMm = computeTrail(casterDeg, rear.kpiDeg, setup.wheelOffsetMm, setup.tireOD)
+  const scrubRadiusMm = computeScrubRadius(
+    setup.wheelOffsetMm,
+    setup.wheelHexThicknessMm,
+    rear.kpiDeg,
+    setup.tireOD,
+  )
+  return { rear, top, chassis, setup, casterDeg, trailMm, scrubRadiusMm }
 }

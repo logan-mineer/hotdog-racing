@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { computeGeometry, computeTrail } from './model'
+import { computeGeometry, computeTrail, computeScrubRadius } from './model'
 import {
   CHASSIS_BASELINE,
   LOWER_ARM_LENGTH,
   TIE_ROD_LENGTH,
   UPPER_ARM_LENGTH,
   CASTER_SPACER,
+  WHEEL_HEX_THICKNESS,
+  WHEEL_OFFSET,
+  TIRE_OD,
 } from './config'
 import type { ChassisBaseline } from './config'
 
@@ -14,6 +17,9 @@ const DEFAULTS = {
   tieRodLength: TIE_ROD_LENGTH.defaultValue,
   upperArmLength: UPPER_ARM_LENGTH.defaultValue,
   casterSpacerDeg: CASTER_SPACER.defaultValue,
+  wheelHexThicknessMm: WHEEL_HEX_THICKNESS.defaultValue,
+  wheelOffsetMm: WHEEL_OFFSET.defaultValue,
+  tireOD: TIRE_OD.defaultValue,
 }
 
 describe('computeGeometry — camber', () => {
@@ -91,10 +97,11 @@ describe('computeGeometry — toe', () => {
 
   it('places rack ball and tie rod outboard at the configured chassis positions when tie rod is at default', () => {
     const geo = computeGeometry({ ...DEFAULTS })
+    const kingpinX = (geo.rear.lowerOutboard.x + geo.rear.upperOutboard.x) / 2
     expect(geo.top.rackBall.x).toBeCloseTo(CHASSIS_BASELINE.rackBallX, 5)
     expect(geo.top.rackBall.y).toBeCloseTo(CHASSIS_BASELINE.rackBallY, 5)
-    // At zero toe the tie rod outboard sits at the kingpin + offset baseline.
-    expect(geo.top.tieRodOutboard.x).toBeCloseTo(geo.top.wheelCenter.x + CHASSIS_BASELINE.knuckleTieRodOffsetX, 5)
+    // At zero toe the tie rod outboard sits at the kingpin midpoint + offset baseline.
+    expect(geo.top.tieRodOutboard.x).toBeCloseTo(kingpinX + CHASSIS_BASELINE.knuckleTieRodOffsetX, 5)
     expect(geo.top.tieRodOutboard.y).toBeCloseTo(CHASSIS_BASELINE.knuckleTieRodOffsetY, 5)
   })
 
@@ -105,9 +112,10 @@ describe('computeGeometry — toe', () => {
     )
     for (const l of [TIE_ROD_LENGTH.min, 35, 38, 42, 45, TIE_ROD_LENGTH.max]) {
       const geo = computeGeometry({ ...DEFAULTS, tieRodLength: l })
+      const kingpinX = (geo.rear.lowerOutboard.x + geo.rear.upperOutboard.x) / 2
       const r = Math.hypot(
-        geo.top.tieRodOutboard.x - geo.top.wheelCenter.x,
-        geo.top.tieRodOutboard.y - geo.top.wheelCenter.y,
+        geo.top.tieRodOutboard.x - kingpinX,
+        geo.top.tieRodOutboard.y - 0,
       )
       expect(r).toBeCloseTo(baselineRadius, 4)
     }
@@ -225,7 +233,78 @@ describe('computeTrail — caster trail bridge', () => {
 
   it('matches the trail readout exposed by computeGeometry at a known input', () => {
     const geo = computeGeometry({ ...DEFAULTS, casterSpacerDeg: 7 })
-    expect(geo.trailMm).toBeCloseTo(computeTrail(7, geo.rear.kpiDeg, 0, CHASSIS_BASELINE.tireOD), 9)
+    expect(geo.trailMm).toBeCloseTo(computeTrail(7, geo.rear.kpiDeg, geo.setup.wheelOffsetMm, geo.setup.tireOD), 9)
+  })
+
+  it('responds linearly to tire OD when read off computeGeometry', () => {
+    const small = computeGeometry({ ...DEFAULTS, casterSpacerDeg: 8, tireOD: 50 })
+    const large = computeGeometry({ ...DEFAULTS, casterSpacerDeg: 8, tireOD: 70 })
+    expect(large.trailMm / small.trailMm).toBeCloseTo(70 / 50, 6)
+  })
+})
+
+describe('computeScrubRadius — bridge', () => {
+  it('returns zero when wheel offset and hex thickness are both zero (regardless of KPI/tire OD)', () => {
+    expect(computeScrubRadius(0, 0, 0, 60)).toBeCloseTo(0, 9)
+    expect(computeScrubRadius(0, 0, 5, 60)).not.toBeCloseTo(0, 1)
+    // The KPI term still applies — only (offset+hex)=0 *and* KPI=0 forces zero.
+    expect(computeScrubRadius(0, 0, 0, 80)).toBeCloseTo(0, 9)
+  })
+
+  it('equals (hex + offset) when KPI is zero (kingpin vertical)', () => {
+    expect(computeScrubRadius(0, 5, 0, 60)).toBeCloseTo(5, 9)
+    expect(computeScrubRadius(3, 5, 0, 60)).toBeCloseTo(8, 9)
+    expect(computeScrubRadius(-2, 5, 0, 60)).toBeCloseTo(3, 9)
+  })
+
+  it('returns negative scrub for zero offset and positive KPI (contact patch sits inboard of kingpin at ground)', () => {
+    const result = computeScrubRadius(0, 0, 5, 60)
+    expect(result).toBeCloseTo(-(60 / 2) * Math.tan((5 * Math.PI) / 180), 6)
+    expect(result).toBeLessThan(0)
+  })
+
+  it('matches the closed-form (hex+offset)/cos(KPI) − R·tan(KPI) at a combined input', () => {
+    const expected = 8 / Math.cos((5 * Math.PI) / 180) - 30 * Math.tan((5 * Math.PI) / 180)
+    expect(computeScrubRadius(3, 5, 5, 60)).toBeCloseTo(expected, 9)
+  })
+
+  it('flips sign when KPI flips sign (positive vs. negative kingpin tilt)', () => {
+    expect(computeScrubRadius(0, 0, 5, 60)).toBeCloseTo(-computeScrubRadius(0, 0, -5, 60), 9)
+  })
+
+  it('matches the scrub radius readout exposed by computeGeometry', () => {
+    const geo = computeGeometry({ ...DEFAULTS, wheelHexThicknessMm: 4, wheelOffsetMm: 2, lowerArmLength: 50 })
+    expect(geo.scrubRadiusMm).toBeCloseTo(
+      computeScrubRadius(2, 4, geo.rear.kpiDeg, geo.setup.tireOD),
+      9,
+    )
+  })
+})
+
+describe('computeGeometry — wheel offset and hex thickness', () => {
+  it('places the rear-view wheel center perpendicular-outboard of the kingpin midpoint by (hex + offset)', () => {
+    const geo = computeGeometry({ ...DEFAULTS, wheelHexThicknessMm: 5, wheelOffsetMm: 3 })
+    // At zero camber the perpendicular direction is pure +x, so the wheel
+    // center sits exactly (hex+offset) outboard of the kingpin midpoint.
+    const kingpinMidX = (geo.rear.lowerOutboard.x + geo.rear.upperOutboard.x) / 2
+    expect(geo.rear.wheelCenter.x - kingpinMidX).toBeCloseTo(8, 5)
+  })
+
+  it('shifts wheel center outboard by 1mm per mm of hex thickness or wheel offset (zero camber)', () => {
+    const baseline = computeGeometry({ ...DEFAULTS, wheelHexThicknessMm: 0, wheelOffsetMm: 0 })
+    const plusHex = computeGeometry({ ...DEFAULTS, wheelHexThicknessMm: 4, wheelOffsetMm: 0 })
+    const plusOffset = computeGeometry({ ...DEFAULTS, wheelHexThicknessMm: 0, wheelOffsetMm: 4 })
+    expect(plusHex.rear.wheelCenter.x - baseline.rear.wheelCenter.x).toBeCloseTo(4, 5)
+    expect(plusOffset.rear.wheelCenter.x - baseline.rear.wheelCenter.x).toBeCloseTo(4, 5)
+  })
+
+  it('does not change camber, KPI, or the kingpin ball positions', () => {
+    const a = computeGeometry({ ...DEFAULTS, lowerArmLength: 50, wheelHexThicknessMm: 0, wheelOffsetMm: 0 })
+    const b = computeGeometry({ ...DEFAULTS, lowerArmLength: 50, wheelHexThicknessMm: 8, wheelOffsetMm: 4 })
+    expect(b.rear.camberDeg).toBeCloseTo(a.rear.camberDeg, 9)
+    expect(b.rear.kpiDeg).toBeCloseTo(a.rear.kpiDeg, 9)
+    expect(b.rear.lowerOutboard.x).toBeCloseTo(a.rear.lowerOutboard.x, 9)
+    expect(b.rear.upperOutboard.x).toBeCloseTo(a.rear.upperOutboard.x, 9)
   })
 })
 
@@ -258,6 +337,12 @@ describe('computeGeometry — robustness', () => {
     expect(() => computeGeometry({ ...DEFAULTS, upperArmLength: UPPER_ARM_LENGTH.max })).not.toThrow()
     expect(() => computeGeometry({ ...DEFAULTS, casterSpacerDeg: CASTER_SPACER.min })).not.toThrow()
     expect(() => computeGeometry({ ...DEFAULTS, casterSpacerDeg: CASTER_SPACER.max })).not.toThrow()
+    expect(() => computeGeometry({ ...DEFAULTS, wheelHexThicknessMm: WHEEL_HEX_THICKNESS.min })).not.toThrow()
+    expect(() => computeGeometry({ ...DEFAULTS, wheelHexThicknessMm: WHEEL_HEX_THICKNESS.max })).not.toThrow()
+    expect(() => computeGeometry({ ...DEFAULTS, wheelOffsetMm: WHEEL_OFFSET.min })).not.toThrow()
+    expect(() => computeGeometry({ ...DEFAULTS, wheelOffsetMm: WHEEL_OFFSET.max })).not.toThrow()
+    expect(() => computeGeometry({ ...DEFAULTS, tireOD: TIRE_OD.min })).not.toThrow()
+    expect(() => computeGeometry({ ...DEFAULTS, tireOD: TIRE_OD.max })).not.toThrow()
   })
 
   it('returns finite numbers across the valid range', () => {
@@ -267,6 +352,7 @@ describe('computeGeometry — robustness', () => {
       expect(Number.isFinite(geo.rear.kpiDeg)).toBe(true)
       expect(Number.isFinite(geo.rear.upperOutboard.x)).toBe(true)
       expect(Number.isFinite(geo.rear.upperOutboard.y)).toBe(true)
+      expect(Number.isFinite(geo.scrubRadiusMm)).toBe(true)
     }
     for (let l = TIE_ROD_LENGTH.min; l <= TIE_ROD_LENGTH.max; l += 0.5) {
       const geo = computeGeometry({ ...DEFAULTS, tieRodLength: l })
@@ -280,6 +366,14 @@ describe('computeGeometry — robustness', () => {
       expect(Number.isFinite(geo.casterDeg)).toBe(true)
       expect(Number.isFinite(geo.trailMm)).toBe(true)
       expect(Number.isFinite(geo.top.upperOutboard.y)).toBe(true)
+    }
+    for (let h = WHEEL_HEX_THICKNESS.min; h <= WHEEL_HEX_THICKNESS.max; h += 1) {
+      for (let o = WHEEL_OFFSET.min; o <= WHEEL_OFFSET.max; o += 2) {
+        const geo = computeGeometry({ ...DEFAULTS, wheelHexThicknessMm: h, wheelOffsetMm: o })
+        expect(Number.isFinite(geo.scrubRadiusMm)).toBe(true)
+        expect(Number.isFinite(geo.rear.wheelCenter.x)).toBe(true)
+        expect(Number.isFinite(geo.rear.wheelCenter.y)).toBe(true)
+      }
     }
   })
 })

@@ -12,7 +12,7 @@ type Props = {
 const STEERING_RED = '#FF0020'
 
 export default function TopView({ geometry }: Props) {
-  const { top, chassis } = geometry
+  const { top, chassis, setup } = geometry
 
   const right = {
     lowerInboard: top.lowerInboard,
@@ -128,7 +128,7 @@ export default function TopView({ geometry }: Props) {
         <Wheel
           center={right.wheelCenter}
           tireWidth={chassis.tireWidth}
-          tireOD={chassis.tireOD}
+          tireOD={setup.tireOD}
           rimWidth={chassis.rimWidth}
           rimOD={chassis.rimDiameter}
           toeDeg={top.toeDegRight}
@@ -136,7 +136,7 @@ export default function TopView({ geometry }: Props) {
         <Wheel
           center={left.wheelCenter}
           tireWidth={chassis.tireWidth}
-          tireOD={chassis.tireOD}
+          tireOD={setup.tireOD}
           rimWidth={chassis.rimWidth}
           rimOD={chassis.rimDiameter}
           toeDeg={-top.toeDegLeft}
