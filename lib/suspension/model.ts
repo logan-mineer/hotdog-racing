@@ -9,6 +9,7 @@ export type Point = { x: number; y: number }
 
 export type Setup = {
   lowerArmLength: number
+  tieRodLength: number
 }
 
 export type RearGeometry = {
@@ -21,10 +22,18 @@ export type RearGeometry = {
 }
 
 export type TopGeometry = {
-  // Top-view positions of the lower arm endpoints, projected (forward axis = 0 in v1).
+  // Right-side positions in chassis-relative top-view coords (y = +forward).
+  // Renderers mirror across x = 0 for the left side.
   lowerInboard: Point
   lowerOutboard: Point
   wheelCenter: Point
+  rackBall: Point        // right-side rack ball
+  tieRodOutboard: Point  // right-side tie rod outboard attach (knuckle pickup)
+  // Toe per side, signed: positive = toe in (front of wheel toward chassis centerline).
+  // Equal under mirror-symmetric setup with no steering input; diverge once
+  // the steering state slider lands in #84.
+  toeDegRight: number
+  toeDegLeft: number
 }
 
 export type Geometry = {
@@ -102,14 +111,86 @@ function computeRearGeometry(setup: Setup, chassis: ChassisBaseline): RearGeomet
   return { lowerInboard, lowerOutboard, upperInboard, upperOutboard, wheelCenter, camberDeg }
 }
 
-function computeTopGeometry(rear: RearGeometry): TopGeometry {
-  // v1 top-view projection: lower arm runs purely laterally at the wheel's
-  // longitudinal position (y = 0). Forward sweep / steering-induced rotation
-  // lands in #80 (steering & toe).
+// Pick the circle-circle intersection closest to a reference point. Used for
+// tie rod geometry where, as length sweeps through baseline, we need the
+// solution that varies continuously with the input rather than flipping to
+// the mirror.
+function intersectClosestToBaseline(
+  c1: Point,
+  r1: number,
+  c2: Point,
+  r2: number,
+  baseline: Point,
+): Point {
+  const dx = c2.x - c1.x
+  const dy = c2.y - c1.y
+  const d = Math.hypot(dx, dy)
+  if (d === 0 || d > r1 + r2 || d < Math.abs(r1 - r2)) {
+    // Out of reach: project the baseline onto c1's circle. Proper
+    // GeometryError for unreachable tie rod lengths lands in #86.
+    const bx = baseline.x - c1.x
+    const by = baseline.y - c1.y
+    const bd = Math.hypot(bx, by)
+    if (bd === 0) return { x: c1.x + r1, y: c1.y }
+    return { x: c1.x + (r1 * bx) / bd, y: c1.y + (r1 * by) / bd }
+  }
+  const a = (r1 * r1 - r2 * r2 + d * d) / (2 * d)
+  const h = Math.sqrt(Math.max(0, r1 * r1 - a * a))
+  const mx = c1.x + (a * dx) / d
+  const my = c1.y + (a * dy) / d
+  const ox = (h * dy) / d
+  const oy = (h * dx) / d
+  const p1 = { x: mx + ox, y: my - oy }
+  const p2 = { x: mx - ox, y: my + oy }
+  const d1 = Math.hypot(p1.x - baseline.x, p1.y - baseline.y)
+  const d2 = Math.hypot(p2.x - baseline.x, p2.y - baseline.y)
+  return d1 <= d2 ? p1 : p2
+}
+
+function computeTopGeometry(
+  setup: Setup,
+  rear: RearGeometry,
+  chassis: ChassisBaseline,
+): TopGeometry {
+  // v1 top-view collapse: kingpin axis projects to a single point at the
+  // wheel center's lateral position. Forward sweep of the lower arm lands
+  // alongside steering state in #84.
+  const kingpin: Point = { x: rear.wheelCenter.x, y: 0 }
+  const baselineAttach: Point = {
+    x: kingpin.x + chassis.knuckleTieRodOffsetX,
+    y: kingpin.y + chassis.knuckleTieRodOffsetY,
+  }
+  const rackBall: Point = { x: chassis.rackBallX, y: chassis.rackBallY }
+  const knuckleRadius = Math.hypot(
+    baselineAttach.x - kingpin.x,
+    baselineAttach.y - kingpin.y,
+  )
+
+  const tieRodOutboard = intersectClosestToBaseline(
+    kingpin,
+    knuckleRadius,
+    rackBall,
+    setup.tieRodLength,
+    baselineAttach,
+  )
+
+  // Toe = signed knuckle rotation from baseline. CCW (from above) on the
+  // right side = front of wheel toward centerline = toe in = positive.
+  const baselineAngle = Math.atan2(baselineAttach.y - kingpin.y, baselineAttach.x - kingpin.x)
+  const currentAngle = Math.atan2(tieRodOutboard.y - kingpin.y, tieRodOutboard.x - kingpin.x)
+  let rotationRad = currentAngle - baselineAngle
+  if (rotationRad > Math.PI) rotationRad -= 2 * Math.PI
+  if (rotationRad <= -Math.PI) rotationRad += 2 * Math.PI
+  const toeDegRight = rotationRad * (180 / Math.PI)
+
   return {
     lowerInboard: { x: rear.lowerInboard.x, y: 0 },
     lowerOutboard: { x: rear.lowerOutboard.x, y: 0 },
     wheelCenter: { x: rear.wheelCenter.x, y: 0 },
+    rackBall,
+    tieRodOutboard,
+    toeDegRight,
+    toeDegLeft: toeDegRight,
   }
 }
 
@@ -118,6 +199,6 @@ export function computeGeometry(
   chassis: ChassisBaseline = CHASSIS_BASELINE,
 ): Geometry {
   const rear = computeRearGeometry(setup, chassis)
-  const top = computeTopGeometry(rear)
+  const top = computeTopGeometry(setup, rear, chassis)
   return { rear, top, chassis }
 }

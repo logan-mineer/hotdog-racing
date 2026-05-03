@@ -1,11 +1,18 @@
-import { LOWER_ARM_LENGTH } from '@/lib/suspension/config'
+import { LOWER_ARM_LENGTH, TIE_ROD_LENGTH } from '@/lib/suspension/config'
 
 type Props = {
   lowerArmLength: number
   onLowerArmLengthChange: (value: number) => void
+  tieRodLength: number
+  onTieRodLengthChange: (value: number) => void
 }
 
-export default function SetupPanel({ lowerArmLength, onLowerArmLengthChange }: Props) {
+export default function SetupPanel({
+  lowerArmLength,
+  onLowerArmLengthChange,
+  tieRodLength,
+  onTieRodLengthChange,
+}: Props) {
   return (
     <div
       className="w-full shrink-0 rounded-lg border p-5 lg:w-72"
@@ -23,6 +30,16 @@ export default function SetupPanel({ lowerArmLength, onLowerArmLengthChange }: P
         step={LOWER_ARM_LENGTH.step}
         display={v => `${v.toFixed(1)} mm`}
         onChange={onLowerArmLengthChange}
+      />
+
+      <Slider
+        label="Tie Rod Length"
+        value={tieRodLength}
+        min={TIE_ROD_LENGTH.min}
+        max={TIE_ROD_LENGTH.max}
+        step={TIE_ROD_LENGTH.step}
+        display={v => `${v.toFixed(1)} mm`}
+        onChange={onTieRodLengthChange}
       />
     </div>
   )

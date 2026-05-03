@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { LOWER_ARM_LENGTH } from '@/lib/suspension/config'
+import { LOWER_ARM_LENGTH, TIE_ROD_LENGTH } from '@/lib/suspension/config'
 import { computeGeometry } from '@/lib/suspension/model'
 import RearView from './RearView'
 import TopView from './TopView'
@@ -11,10 +11,11 @@ import StatePanel from './StatePanel'
 
 export default function SuspensionTool() {
   const [lowerArmLength, setLowerArmLength] = useState(LOWER_ARM_LENGTH.defaultValue)
+  const [tieRodLength, setTieRodLength] = useState(TIE_ROD_LENGTH.defaultValue)
 
   const geometry = useMemo(
-    () => computeGeometry({ lowerArmLength }),
-    [lowerArmLength],
+    () => computeGeometry({ lowerArmLength, tieRodLength }),
+    [lowerArmLength, tieRodLength],
   )
 
   return (
@@ -29,6 +30,8 @@ export default function SuspensionTool() {
           <SetupPanel
             lowerArmLength={lowerArmLength}
             onLowerArmLengthChange={setLowerArmLength}
+            tieRodLength={tieRodLength}
+            onTieRodLengthChange={setTieRodLength}
           />
 
           <div className="flex flex-1 flex-col gap-4">
