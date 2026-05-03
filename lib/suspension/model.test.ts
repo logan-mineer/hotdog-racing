@@ -1,11 +1,19 @@
 import { describe, it, expect } from 'vitest'
-import { computeGeometry } from './model'
-import { CHASSIS_BASELINE, LOWER_ARM_LENGTH, TIE_ROD_LENGTH } from './config'
+import { computeGeometry, computeTrail } from './model'
+import {
+  CHASSIS_BASELINE,
+  LOWER_ARM_LENGTH,
+  TIE_ROD_LENGTH,
+  UPPER_ARM_LENGTH,
+  CASTER_SPACER,
+} from './config'
 import type { ChassisBaseline } from './config'
 
 const DEFAULTS = {
   lowerArmLength: LOWER_ARM_LENGTH.defaultValue,
   tieRodLength: TIE_ROD_LENGTH.defaultValue,
+  upperArmLength: UPPER_ARM_LENGTH.defaultValue,
+  casterSpacerDeg: CASTER_SPACER.defaultValue,
 }
 
 describe('computeGeometry — camber', () => {
@@ -55,7 +63,7 @@ describe('computeGeometry — outboard kingpin ball position', () => {
       geo.rear.upperOutboard.y - geo.rear.upperInboard.y,
     )
     expect(dKnuckle).toBeCloseTo(CHASSIS_BASELINE.knuckleLength, 5)
-    expect(dUpperArm).toBeCloseTo(CHASSIS_BASELINE.upperArmLength, 5)
+    expect(dUpperArm).toBeCloseTo(UPPER_ARM_LENGTH.defaultValue, 5)
   })
 })
 
@@ -147,18 +155,116 @@ describe('computeGeometry — toe', () => {
   })
 })
 
+describe('computeGeometry — kingpin inclination (KPI)', () => {
+  it('returns zero KPI at the baseline lower arm length (kingpin vertical)', () => {
+    const geo = computeGeometry({ ...DEFAULTS })
+    expect(geo.rear.kpiDeg).toBeCloseTo(0, 5)
+  })
+
+  it('reports KPI as the negation of camber under the v1 zero-scrub assumption', () => {
+    for (const l of [40, 42.5, 45, 47.5, 50]) {
+      const geo = computeGeometry({ ...DEFAULTS, lowerArmLength: l })
+      expect(geo.rear.kpiDeg).toBeCloseTo(-geo.rear.camberDeg, 6)
+    }
+  })
+
+  it('returns positive KPI when the lower arm is lengthened (top of kingpin tilts inboard)', () => {
+    const geo = computeGeometry({ ...DEFAULTS, lowerArmLength: 50 })
+    expect(geo.rear.kpiDeg).toBeGreaterThan(0)
+    expect(geo.rear.kpiDeg).toBeCloseTo(6.38, 1)
+  })
+})
+
+describe('computeGeometry — caster', () => {
+  it('exposes caster equal to the caster spacer setting (1:1 in v1)', () => {
+    for (const c of [0, 1, 5, 10, 15]) {
+      const geo = computeGeometry({ ...DEFAULTS, casterSpacerDeg: c })
+      expect(geo.casterDeg).toBe(c)
+    }
+  })
+
+  it('shifts the entire upper hinge pin rearward by knuckleLength·tan(caster) — both ends move together', () => {
+    const c = 10
+    const geo = computeGeometry({ ...DEFAULTS, casterSpacerDeg: c })
+    const expected = -CHASSIS_BASELINE.knuckleLength * Math.tan((c * Math.PI) / 180)
+    expect(geo.top.upperInboard.y).toBeCloseTo(expected, 5)
+    expect(geo.top.upperOutboard.y).toBeCloseTo(expected, 5)
+    expect(geo.top.upperOutboard.y).toBeLessThan(0)
+  })
+
+  it('keeps the upper arm parallel to the lower arm (perpendicular to chassis centerline) at any caster', () => {
+    for (const c of [0, 5, 10, 15]) {
+      const geo = computeGeometry({ ...DEFAULTS, casterSpacerDeg: c })
+      expect(geo.top.upperOutboard.y).toBeCloseTo(geo.top.upperInboard.y, 9)
+      expect(geo.top.lowerOutboard.y).toBe(0)
+      expect(geo.top.lowerInboard.y).toBe(0)
+    }
+  })
+})
+
+describe('computeTrail — caster trail bridge', () => {
+  it('returns zero trail at zero caster regardless of tire size', () => {
+    expect(computeTrail(0, 0, 0, 60)).toBeCloseTo(0, 9)
+    expect(computeTrail(0, 5, 8, 60)).toBeCloseTo(0, 9)
+  })
+
+  it('returns R·tan(caster) for a positive caster angle', () => {
+    expect(computeTrail(5, 0, 0, 60)).toBeCloseTo(30 * Math.tan((5 * Math.PI) / 180), 6)
+    expect(computeTrail(10, 0, 0, 60)).toBeCloseTo(30 * Math.tan((10 * Math.PI) / 180), 6)
+  })
+
+  it('is symmetric about zero caster (negative caster → negative trail)', () => {
+    expect(computeTrail(-5, 0, 0, 60)).toBeCloseTo(-computeTrail(5, 0, 0, 60), 9)
+  })
+
+  it('scales linearly with tire OD', () => {
+    const small = computeTrail(8, 0, 0, 50)
+    const large = computeTrail(8, 0, 0, 100)
+    expect(large / small).toBeCloseTo(2, 6)
+  })
+
+  it('matches the trail readout exposed by computeGeometry at a known input', () => {
+    const geo = computeGeometry({ ...DEFAULTS, casterSpacerDeg: 7 })
+    expect(geo.trailMm).toBeCloseTo(computeTrail(7, geo.rear.kpiDeg, 0, CHASSIS_BASELINE.tireOD), 9)
+  })
+})
+
+describe('computeGeometry — upper arm', () => {
+  it('places upper outboard on a circle of radius UPPER_ARM_LENGTH around the upper inboard pivot', () => {
+    for (const u of [UPPER_ARM_LENGTH.min, 40, UPPER_ARM_LENGTH.defaultValue, 50, UPPER_ARM_LENGTH.max]) {
+      const geo = computeGeometry({ ...DEFAULTS, upperArmLength: u })
+      const r = Math.hypot(
+        geo.rear.upperOutboard.x - geo.rear.upperInboard.x,
+        geo.rear.upperOutboard.y - geo.rear.upperInboard.y,
+      )
+      expect(r).toBeCloseTo(u, 5)
+    }
+  })
+
+  it('changing upper arm length moves the kingpin angle (camber/KPI not held constant)', () => {
+    const shortArm = computeGeometry({ ...DEFAULTS, upperArmLength: 40 })
+    const longArm = computeGeometry({ ...DEFAULTS, upperArmLength: 50 })
+    expect(shortArm.rear.camberDeg).not.toBeCloseTo(longArm.rear.camberDeg, 1)
+  })
+})
+
 describe('computeGeometry — robustness', () => {
   it('does not throw at the slider range extremes', () => {
     expect(() => computeGeometry({ ...DEFAULTS, lowerArmLength: LOWER_ARM_LENGTH.min })).not.toThrow()
     expect(() => computeGeometry({ ...DEFAULTS, lowerArmLength: LOWER_ARM_LENGTH.max })).not.toThrow()
     expect(() => computeGeometry({ ...DEFAULTS, tieRodLength: TIE_ROD_LENGTH.min })).not.toThrow()
     expect(() => computeGeometry({ ...DEFAULTS, tieRodLength: TIE_ROD_LENGTH.max })).not.toThrow()
+    expect(() => computeGeometry({ ...DEFAULTS, upperArmLength: UPPER_ARM_LENGTH.min })).not.toThrow()
+    expect(() => computeGeometry({ ...DEFAULTS, upperArmLength: UPPER_ARM_LENGTH.max })).not.toThrow()
+    expect(() => computeGeometry({ ...DEFAULTS, casterSpacerDeg: CASTER_SPACER.min })).not.toThrow()
+    expect(() => computeGeometry({ ...DEFAULTS, casterSpacerDeg: CASTER_SPACER.max })).not.toThrow()
   })
 
   it('returns finite numbers across the valid range', () => {
     for (let l = LOWER_ARM_LENGTH.min; l <= LOWER_ARM_LENGTH.max; l += 1) {
       const geo = computeGeometry({ ...DEFAULTS, lowerArmLength: l })
       expect(Number.isFinite(geo.rear.camberDeg)).toBe(true)
+      expect(Number.isFinite(geo.rear.kpiDeg)).toBe(true)
       expect(Number.isFinite(geo.rear.upperOutboard.x)).toBe(true)
       expect(Number.isFinite(geo.rear.upperOutboard.y)).toBe(true)
     }
@@ -168,6 +274,12 @@ describe('computeGeometry — robustness', () => {
       expect(Number.isFinite(geo.top.toeDegLeft)).toBe(true)
       expect(Number.isFinite(geo.top.tieRodOutboard.x)).toBe(true)
       expect(Number.isFinite(geo.top.tieRodOutboard.y)).toBe(true)
+    }
+    for (let c = CASTER_SPACER.min; c <= CASTER_SPACER.max; c += 1) {
+      const geo = computeGeometry({ ...DEFAULTS, casterSpacerDeg: c })
+      expect(Number.isFinite(geo.casterDeg)).toBe(true)
+      expect(Number.isFinite(geo.trailMm)).toBe(true)
+      expect(Number.isFinite(geo.top.upperOutboard.y)).toBe(true)
     }
   })
 })

@@ -4,6 +4,7 @@ const VIEW_WIDTH = 320
 const VIEW_HEIGHT = 130
 const VIEW_X_MIN = -VIEW_WIDTH / 2
 const VIEW_Y_MIN = -110  // y-up math; ground at math y=0 lands near the bottom of the SVG
+const STEERING_RED = '#FF0020'
 
 type Props = {
   geometry: Geometry
@@ -79,6 +80,50 @@ export default function RearView({ geometry }: Props) {
           strokeLinecap="round"
         />
 
+        {/* Upper arms */}
+        <line
+          x1={right.upperInboard.x}
+          y1={right.upperInboard.y}
+          x2={right.upperOutboard.x}
+          y2={right.upperOutboard.y}
+          stroke="currentColor"
+          strokeOpacity="0.75"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        <line
+          x1={left.upperInboard.x}
+          y1={left.upperInboard.y}
+          x2={left.upperOutboard.x}
+          y2={left.upperOutboard.y}
+          stroke="currentColor"
+          strokeOpacity="0.75"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+
+        {/* Kingpin axis — dashed brand red through the rear-view kingpin balls */}
+        <line
+          x1={right.lowerOutboard.x}
+          y1={right.lowerOutboard.y}
+          x2={right.upperOutboard.x}
+          y2={right.upperOutboard.y}
+          stroke={STEERING_RED}
+          strokeWidth="1.5"
+          strokeDasharray="4 3"
+          strokeLinecap="round"
+        />
+        <line
+          x1={left.lowerOutboard.x}
+          y1={left.lowerOutboard.y}
+          x2={left.upperOutboard.x}
+          y2={left.upperOutboard.y}
+          stroke={STEERING_RED}
+          strokeWidth="1.5"
+          strokeDasharray="4 3"
+          strokeLinecap="round"
+        />
+
         {/* Wheels (tire + rim) — rectangle leaning at the camber angle */}
         <Wheel
           centerX={right.wheelCenter.x}
@@ -102,8 +147,12 @@ export default function RearView({ geometry }: Props) {
         {/* Pivot dots */}
         <Pivot x={right.lowerInboard.x} y={right.lowerInboard.y} />
         <Pivot x={right.lowerOutboard.x} y={right.lowerOutboard.y} />
+        <Pivot x={right.upperInboard.x} y={right.upperInboard.y} />
+        <Pivot x={right.upperOutboard.x} y={right.upperOutboard.y} />
         <Pivot x={left.lowerInboard.x} y={left.lowerInboard.y} />
         <Pivot x={left.lowerOutboard.x} y={left.lowerOutboard.y} />
+        <Pivot x={left.upperInboard.x} y={left.upperInboard.y} />
+        <Pivot x={left.upperOutboard.x} y={left.upperOutboard.y} />
       </g>
     </svg>
   )
@@ -177,5 +226,6 @@ function mirrorRear(rear: Geometry['rear']): Geometry['rear'] {
     upperOutboard: { x: -rear.upperOutboard.x, y: rear.upperOutboard.y },
     wheelCenter: { x: -rear.wheelCenter.x, y: rear.wheelCenter.y },
     camberDeg: rear.camberDeg,
+    kpiDeg: rear.kpiDeg,
   }
 }
