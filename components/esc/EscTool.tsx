@@ -16,10 +16,12 @@ import {
   NEUTRAL_BRAKE_FREQUENCY_KHZ,
   NEUTRAL_BRAKE_POWER,
   REV_LIMIT_RPM,
+  ROTOR_VARIANT,
+  ROTOR_VARIANTS,
   THROTTLE_CURVE,
   TURBO_TIMING,
 } from '@/lib/esc/config'
-import type { ThrottleCurveMode } from '@/lib/esc/config'
+import type { RotorVariant, ThrottleCurveMode } from '@/lib/esc/config'
 import { effectiveTiming, motorKV, torquePowerCurve } from '@/lib/esc/model'
 import BrakeChart from './BrakeChart'
 import ThrottleChart from './ThrottleChart'
@@ -37,6 +39,7 @@ type TimingState = {
   turboActive: boolean
   revLimitEnabled: boolean
   revLimitRPM: number
+  rotorVariant: RotorVariant
 }
 
 const TIMING_DEFAULTS: TimingState = {
@@ -49,6 +52,7 @@ const TIMING_DEFAULTS: TimingState = {
   turboActive: false,
   revLimitEnabled: false,
   revLimitRPM: REV_LIMIT_RPM.defaultValue,
+  rotorVariant: ROTOR_VARIANT.defaultValue,
 }
 
 type ThrottleState = {
@@ -112,6 +116,7 @@ export default function EscTool() {
             ...(typeof t.turboActive === 'boolean' ? { turboActive: t.turboActive } : {}),
             ...(typeof t.revLimitEnabled === 'boolean' ? { revLimitEnabled: t.revLimitEnabled } : {}),
             ...(typeof t.revLimitRPM === 'number' ? { revLimitRPM: t.revLimitRPM } : {}),
+            ...(t.rotorVariant === 'lv30' || t.rotorVariant === 'lv38' || t.rotorVariant === 'lv42' ? { rotorVariant: t.rotorVariant } : {}),
           }))
         }
       }
@@ -236,6 +241,7 @@ export default function EscTool() {
     boostEndRPM: timing.boostEndRPM,
     turboTiming: timing.turboTiming,
     turboActive: timing.turboActive,
+    rotorKvScale: ROTOR_VARIANTS[timing.rotorVariant].kvScale,
   }), [
     timing.motorTurn,
     timing.motorCanTiming,
@@ -244,6 +250,7 @@ export default function EscTool() {
     timing.boostEndRPM,
     timing.turboTiming,
     timing.turboActive,
+    timing.rotorVariant,
   ])
 
   const liveReadout = useMemo(() => {
@@ -334,6 +341,34 @@ export default function EscTool() {
                   className="w-full rounded border px-3 py-2 font-mono text-sm"
                   style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--foreground)' }}
                 />
+              </div>
+
+              {/* Rotor variant */}
+              <div className="mb-5">
+                <span className="mb-2 block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+                  Rotor
+                </span>
+                <div className="flex gap-2">
+                  {ROTOR_VARIANT.options.map(variant => (
+                    <button
+                      key={variant}
+                      type="button"
+                      onClick={() => set('rotorVariant', variant)}
+                      className="flex-1 rounded py-2 text-xs font-semibold transition-colors"
+                      style={{
+                        background: timing.rotorVariant === variant ? '#FF0020' : 'transparent',
+                        color: timing.rotorVariant === variant ? '#fff' : 'var(--foreground)',
+                        border: '1px solid',
+                        borderColor: timing.rotorVariant === variant ? '#FF0020' : 'var(--border)',
+                      }}
+                    >
+                      {ROTOR_VARIANTS[variant].label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
+                  {ROTOR_VARIANTS[timing.rotorVariant].description}
+                </p>
               </div>
 
               <Slider label="Can Timing" value={timing.motorCanTiming} min={MOTOR_CAN_TIMING.min} max={MOTOR_CAN_TIMING.max} step={MOTOR_CAN_TIMING.step} display={v => `${v}°`} onChange={v => set('motorCanTiming', v)} />
