@@ -4,6 +4,8 @@ import {
   boostTimingAtRPM,
   effectiveTiming,
   torquePowerCurve,
+  cumulativeTiming,
+  peakRPM,
   throttleCurve,
   brakeCurve,
 } from './model'
@@ -205,6 +207,90 @@ describe('torquePowerCurve', () => {
     const aboveBoostIdx = withBoost.findIndex(p => p.rpm > 20000)
     expect(aboveBoostIdx).toBeGreaterThan(0)
     expect(withBoost[aboveBoostIdx].torque).not.toBeCloseTo(noBoost[aboveBoostIdx].torque, 0)
+  })
+})
+
+describe('cumulativeTiming', () => {
+  const baseParams = {
+    motorTurn: 10.5,
+    motorCanTiming: 0,
+    boostTiming: 0,
+    boostStartRPM: 5000,
+    boostEndRPM: 20000,
+    turboTiming: 0,
+    turboActive: false,
+    rotorKvScale: 1.0,
+  }
+
+  it('returns 0 when all timing sources are 0', () => {
+    expect(cumulativeTiming(baseParams)).toBe(0)
+  })
+
+  it('sums can + boost when turbo is inactive', () => {
+    expect(cumulativeTiming({ ...baseParams, motorCanTiming: 30, boostTiming: 10, turboTiming: 55 })).toBe(40)
+  })
+
+  it('includes turbo timing when turboActive is true', () => {
+    expect(cumulativeTiming({ ...baseParams, motorCanTiming: 30, boostTiming: 10, turboTiming: 55, turboActive: true })).toBe(95)
+  })
+
+  it('is independent of rotor variant and motor turn', () => {
+    const a = cumulativeTiming({ ...baseParams, motorTurn: 4.5, rotorKvScale: 30 / 42, motorCanTiming: 12, boostTiming: 8 })
+    const b = cumulativeTiming({ ...baseParams, motorTurn: 21.5, rotorKvScale: 1.0, motorCanTiming: 12, boostTiming: 8 })
+    expect(a).toBe(b)
+    expect(a).toBe(20)
+  })
+})
+
+describe('peakRPM', () => {
+  const baseParams = {
+    motorTurn: 10.5,
+    motorCanTiming: 0,
+    boostTiming: 0,
+    boostStartRPM: 5000,
+    boostEndRPM: 20000,
+    turboTiming: 0,
+    turboActive: false,
+    rotorKvScale: 1.0,
+  }
+
+  it('equals KV × voltage at zero timing on LV30', () => {
+    // motorKV(10.5) ≈ 3809.52, × 8.4V ≈ 32_000 RPM
+    expect(peakRPM(baseParams)).toBeCloseTo(3809.52 * 8.4, 0)
+  })
+
+  it('matches calibrated 95° real-hardware peak (~100k RPM)', () => {
+    const rpm = peakRPM({ ...baseParams, motorCanTiming: 30, boostTiming: 10, turboTiming: 55, turboActive: true })
+    expect(rpm).toBeGreaterThan(95_000)
+    expect(rpm).toBeLessThan(105_000)
+  })
+
+  it('rises monotonically with cumulative timing', () => {
+    const t0 = peakRPM(baseParams)
+    const t1 = peakRPM({ ...baseParams, motorCanTiming: 15 })
+    const t2 = peakRPM({ ...baseParams, motorCanTiming: 30 })
+    expect(t1).toBeGreaterThan(t0)
+    expect(t2).toBeGreaterThan(t1)
+  })
+
+  it('LV42 has lower peak RPM than LV30 at same timing', () => {
+    const lv30 = peakRPM({ ...baseParams, motorCanTiming: 20, rotorKvScale: 1.0 })
+    const lv42 = peakRPM({ ...baseParams, motorCanTiming: 20, rotorKvScale: 30 / 42 })
+    expect(lv42).toBeLessThan(lv30)
+  })
+
+  it('matches the highest non-zero RPM in the torque curve within sampling tolerance', () => {
+    const params = { ...baseParams, motorCanTiming: 30, boostTiming: 10, turboTiming: 55, turboActive: true }
+    const curve = torquePowerCurve(params, 1000)
+    const lastNonZero = [...curve].reverse().find(p => p.torque > 0)!
+    const sampleStep = curve[1].rpm - curve[0].rpm
+    expect(Math.abs(peakRPM(params) - lastNonZero.rpm)).toBeLessThan(sampleStep * 2)
+  })
+
+  it('ignores turbo timing when turboActive is false', () => {
+    const off = peakRPM({ ...baseParams, motorCanTiming: 10, turboTiming: 55, turboActive: false })
+    const on = peakRPM({ ...baseParams, motorCanTiming: 10, turboTiming: 55, turboActive: true })
+    expect(on).toBeGreaterThan(off)
   })
 })
 
