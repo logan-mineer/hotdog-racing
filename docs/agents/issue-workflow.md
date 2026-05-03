@@ -8,8 +8,8 @@ When the user says they want to get started (or similar), run through these step
 
 1. Run `/triage` on all open `needs-triage` issues — evaluate each against `docs/site-prd.md` and assign the appropriate label (`ready-for-agent`, `ready-for-human`, `needs-info`, `wontfix`) with a brief comment explaining the reasoning.
 2. Present a summary of label changes.
-3. Identify the next issue to work on: the lowest-numbered `ready-for-agent` issue whose "Blocked by" dependencies are all closed.
-4. Announce the chosen issue and begin.
+3. Identify the next issue to work on: the lowest-numbered `ready-for-agent` issue whose "Blocked by" dependencies are all closed. Consider active feature areas in recent git history when breaking ties.
+4. **Check in with the owner** — announce the chosen issue and wait for explicit confirmation before branching or writing any code.
 
 ## Working an issue
 
