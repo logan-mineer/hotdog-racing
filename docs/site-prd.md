@@ -62,10 +62,26 @@ Navigation: **Home / Tools ▾ / Podcast / Blog / About**. Tools has a dropdown 
 ## Tool Definitions
 
 ### Suspension Alignment Visualizer
-Allow users to virtually adjust turnbuckle lengths and see real-time updates to alignment settings (toe, camber, caster, ackermann).
+**Problem:** It is difficult for a driver to understand the relationship between the various alignment settings in the front of the car. To adjust camber, you'll need to correct for the effect this change will have on other settings etc. Because some of these settings are difficult to measure in situe, drivers lack a visual representation of these changes and how they interact with eachother. 
+
+**Relevant Parameters:**
+-Camber
+-Caster
+-Toe
+-Ackerman
+-Suspension Block Width
+-Suspension Block Height
+-Suspension Arm Length (Upper and Lower)
+-Carrier Height
+-Wheel Offset
+-Kingpin Inclination
+-Trail
+-Carrier Tie Rod Attachment Point (height, offset)
+-Steering Rack Type (Wiper, Direct Drive, Slide Rack)
+-Steering Rack Dimensions (height, width, radius, inclination, fore/aft position)
 
 **Core interactions:**
-- Drag sliders or enter values to adjust individual turnbuckles
+- Drag sliders or enter values to adjust individual settings
 - Live 2D diagram updates to reflect geometry changes
 - Readouts for all affected alignment parameters
 - Save/load named configurations via localStorage
