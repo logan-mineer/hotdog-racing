@@ -20,6 +20,18 @@ export default function ReadoutPanel({ geometry }: Props) {
         value={`${geometry.rear.camberDeg.toFixed(PRECISION.angleDeg)}°`}
       />
       <Readout
+        label="Caster"
+        value={`${geometry.casterDeg.toFixed(PRECISION.angleDeg)}°`}
+      />
+      <Readout
+        label="KPI"
+        value={`${geometry.rear.kpiDeg.toFixed(PRECISION.angleDeg)}°`}
+      />
+      <Readout
+        label="Trail"
+        value={`${geometry.trailMm.toFixed(PRECISION.lengthMm)} mm`}
+      />
+      <Readout
         label="Toe (L)"
         value={`${geometry.top.toeDegLeft.toFixed(PRECISION.angleDeg)}°`}
       />

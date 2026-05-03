@@ -17,7 +17,6 @@ export type ChassisBaseline = {
   blockUpperInboardX: number
   blockUpperY: number
   knuckleLength: number       // distance between lower and upper kingpin balls along the carrier
-  upperArmLength: number      // chassis-fixed in v1 (the Advanced panel slider lands in #89)
   // Temporary placeholder pinning the 4-bar linkage's free DOF until the
   // Ride height slider (PRD Setup table) is wired up — at that point ride
   // height will determine the lower-arm angle and this field can be removed.
@@ -39,6 +38,11 @@ export type ChassisBaseline = {
 // Driver-tunable
 export const LOWER_ARM_LENGTH: SliderDef = { min: 35, max: 60, step: 0.5, defaultValue: 45 }
 export const TIE_ROD_LENGTH: SliderDef = { min: 30, max: 50, step: 0.5, defaultValue: 40 }
+export const CASTER_SPACER: SliderDef = { min: 0, max: 15, step: 1, defaultValue: 0 }
+
+// Chassis config — mirror-symmetric, persists per chassis. Inline in the
+// Setup panel for now; the dedicated Advanced collapse lands in #89.
+export const UPPER_ARM_LENGTH: SliderDef = { min: 35, max: 55, step: 0.5, defaultValue: 45 }
 
 // Chassis baseline. Engineered so that at default LOWER_ARM_LENGTH the kingpin is
 // vertical (camber = 0°) and the wheel sits with its bottom at ground.
@@ -48,7 +52,6 @@ export const CHASSIS_BASELINE: ChassisBaseline = {
   blockUpperInboardX: 25,        // TODO
   blockUpperY: 53,               // TODO
   knuckleLength: 45,             // TODO
-  upperArmLength: 45,            // TODO
   staticLowerArmAngleDeg: 0,     // TODO — currently horizontal
   tireOD: 60,                    // TODO
   tireWidth: 24,                 // TODO

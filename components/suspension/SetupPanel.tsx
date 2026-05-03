@@ -1,10 +1,14 @@
-import { LOWER_ARM_LENGTH, TIE_ROD_LENGTH } from '@/lib/suspension/config'
+import { LOWER_ARM_LENGTH, TIE_ROD_LENGTH, CASTER_SPACER, UPPER_ARM_LENGTH } from '@/lib/suspension/config'
 
 type Props = {
   lowerArmLength: number
   onLowerArmLengthChange: (value: number) => void
   tieRodLength: number
   onTieRodLengthChange: (value: number) => void
+  casterSpacerDeg: number
+  onCasterSpacerChange: (value: number) => void
+  upperArmLength: number
+  onUpperArmLengthChange: (value: number) => void
 }
 
 export default function SetupPanel({
@@ -12,6 +16,10 @@ export default function SetupPanel({
   onLowerArmLengthChange,
   tieRodLength,
   onTieRodLengthChange,
+  casterSpacerDeg,
+  onCasterSpacerChange,
+  upperArmLength,
+  onUpperArmLengthChange,
 }: Props) {
   return (
     <div
@@ -40,6 +48,31 @@ export default function SetupPanel({
         step={TIE_ROD_LENGTH.step}
         display={v => `${v.toFixed(1)} mm`}
         onChange={onTieRodLengthChange}
+      />
+
+      <Slider
+        label="Caster Spacer"
+        value={casterSpacerDeg}
+        min={CASTER_SPACER.min}
+        max={CASTER_SPACER.max}
+        step={CASTER_SPACER.step}
+        display={v => `${v.toFixed(0)}°`}
+        onChange={onCasterSpacerChange}
+      />
+
+      {/* Chassis config — moves to a collapsible Advanced section in #89. */}
+      <p className="mb-3 mt-6 font-mono text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--muted)' }}>
+        Chassis
+      </p>
+
+      <Slider
+        label="Upper Arm Length"
+        value={upperArmLength}
+        min={UPPER_ARM_LENGTH.min}
+        max={UPPER_ARM_LENGTH.max}
+        step={UPPER_ARM_LENGTH.step}
+        display={v => `${v.toFixed(1)} mm`}
+        onChange={onUpperArmLengthChange}
       />
     </div>
   )

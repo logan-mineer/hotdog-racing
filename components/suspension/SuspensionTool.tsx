@@ -1,7 +1,12 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { LOWER_ARM_LENGTH, TIE_ROD_LENGTH } from '@/lib/suspension/config'
+import {
+  LOWER_ARM_LENGTH,
+  TIE_ROD_LENGTH,
+  CASTER_SPACER,
+  UPPER_ARM_LENGTH,
+} from '@/lib/suspension/config'
 import { computeGeometry } from '@/lib/suspension/model'
 import RearView from './RearView'
 import TopView from './TopView'
@@ -12,10 +17,12 @@ import StatePanel from './StatePanel'
 export default function SuspensionTool() {
   const [lowerArmLength, setLowerArmLength] = useState(LOWER_ARM_LENGTH.defaultValue)
   const [tieRodLength, setTieRodLength] = useState(TIE_ROD_LENGTH.defaultValue)
+  const [casterSpacerDeg, setCasterSpacerDeg] = useState(CASTER_SPACER.defaultValue)
+  const [upperArmLength, setUpperArmLength] = useState(UPPER_ARM_LENGTH.defaultValue)
 
   const geometry = useMemo(
-    () => computeGeometry({ lowerArmLength, tieRodLength }),
-    [lowerArmLength, tieRodLength],
+    () => computeGeometry({ lowerArmLength, tieRodLength, casterSpacerDeg, upperArmLength }),
+    [lowerArmLength, tieRodLength, casterSpacerDeg, upperArmLength],
   )
 
   return (
@@ -32,6 +39,10 @@ export default function SuspensionTool() {
             onLowerArmLengthChange={setLowerArmLength}
             tieRodLength={tieRodLength}
             onTieRodLengthChange={setTieRodLength}
+            casterSpacerDeg={casterSpacerDeg}
+            onCasterSpacerChange={setCasterSpacerDeg}
+            upperArmLength={upperArmLength}
+            onUpperArmLengthChange={setUpperArmLength}
           />
 
           <div className="flex flex-1 flex-col gap-4">

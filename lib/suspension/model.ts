@@ -10,6 +10,8 @@ export type Point = { x: number; y: number }
 export type Setup = {
   lowerArmLength: number
   tieRodLength: number
+  upperArmLength: number     // chassis config in PRD; same data layer as setup in v1
+  casterSpacerDeg: number    // 0–15° spacer stack on upper hinge pin; sets caster directly in v1
 }
 
 export type RearGeometry = {
@@ -19,6 +21,7 @@ export type RearGeometry = {
   upperOutboard: Point
   wheelCenter: Point
   camberDeg: number  // signed: positive = wheel top tilts outboard, negative = top tilts inboard
+  kpiDeg: number     // signed: positive = kingpin top tilts inboard (standard convention)
 }
 
 export type TopGeometry = {
@@ -26,6 +29,8 @@ export type TopGeometry = {
   // Renderers mirror across x = 0 for the left side.
   lowerInboard: Point
   lowerOutboard: Point
+  upperInboard: Point   // upper arm hinge pivot, top-view projection
+  upperOutboard: Point  // upper kingpin ball, top-view projection (offset fore/aft by caster)
   wheelCenter: Point
   rackBall: Point        // right-side rack ball
   tieRodOutboard: Point  // right-side tie rod outboard attach (knuckle pickup)
@@ -40,6 +45,8 @@ export type Geometry = {
   rear: RearGeometry
   top: TopGeometry
   chassis: ChassisBaseline  // exposed so renderers can size wheels, rims, etc.
+  casterDeg: number          // side-plane kingpin tilt; v1 = casterSpacerDeg
+  trailMm: number            // caster trail at the tire contact patch
 }
 
 // Intersect two circles in 2D. Returns the intersection point on the side
@@ -89,7 +96,7 @@ function computeRearGeometry(setup: Setup, chassis: ChassisBaseline): RearGeomet
 
   const upperOutboard = circleCircleIntersect(
     upperInboard,
-    chassis.upperArmLength,
+    setup.upperArmLength,
     lowerOutboard,
     chassis.knuckleLength,
     'outboard',
@@ -100,6 +107,11 @@ function computeRearGeometry(setup: Setup, chassis: ChassisBaseline): RearGeomet
   // atan2(dx, dy): zero when kingpin is vertical (dx=0, dy>0).
   // Negative when upper ball is inboard of lower ball (top of wheel tilts in → negative camber by RC convention).
   const camberDeg = Math.atan2(dx, dy) * (180 / Math.PI)
+  // KPI is the same physical kingpin angle but takes the opposite sign by
+  // convention (positive = top inboard). With zero scrub radius in v1 the
+  // wheel plane is co-planar with the kingpin axis, so KPI = -camber. They
+  // become independent once the scrub-radius slice (#82) decouples them.
+  const kpiDeg = -camberDeg
 
   // Wheel center sits on the kingpin axis at the midpoint between the two balls in v1.
   // Scrub-radius offset (lateral wheel offset from kingpin) lands in #82.
@@ -108,7 +120,7 @@ function computeRearGeometry(setup: Setup, chassis: ChassisBaseline): RearGeomet
     y: (lowerOutboard.y + upperOutboard.y) / 2,
   }
 
-  return { lowerInboard, lowerOutboard, upperInboard, upperOutboard, wheelCenter, camberDeg }
+  return { lowerInboard, lowerOutboard, upperInboard, upperOutboard, wheelCenter, camberDeg, kpiDeg }
 }
 
 // Pick the circle-circle intersection closest to a reference point. Used for
@@ -183,9 +195,22 @@ function computeTopGeometry(
   if (rotationRad <= -Math.PI) rotationRad += 2 * Math.PI
   const toeDegRight = rotationRad * (180 / Math.PI)
 
+  // Caster spacers shift the entire upper hinge pin fore/aft on the chassis,
+  // so both ends of the upper arm translate together and the arm stays
+  // parallel to the lower arm (perpendicular to the chassis centerline).
+  // Positive caster (standard convention) tilts the top of the kingpin axis
+  // rearward, so the upper arm sits at negative y (behind the lower arm) in
+  // top-view. Result: lower arm at y = 0; upper arm at y = -knuckle·tan(caster).
+  const casterRad = (setup.casterSpacerDeg * Math.PI) / 180
+  const upperHingeForeAft = -chassis.knuckleLength * Math.tan(casterRad)
+  const upperOutboard: Point = { x: rear.upperOutboard.x, y: upperHingeForeAft }
+  const upperInboard: Point = { x: rear.upperInboard.x, y: upperHingeForeAft }
+
   return {
     lowerInboard: { x: rear.lowerInboard.x, y: 0 },
     lowerOutboard: { x: rear.lowerOutboard.x, y: 0 },
+    upperInboard,
+    upperOutboard,
     wheelCenter: { x: rear.wheelCenter.x, y: 0 },
     rackBall,
     tieRodOutboard,
@@ -194,11 +219,27 @@ function computeTopGeometry(
   }
 }
 
+// Caster trail at the tire contact patch. The full PRD signature carries KPI
+// and wheel offset, both of which contribute once scrub radius decouples the
+// wheel plane from the kingpin axis (#82). In v1 those terms are absorbed by
+// the zero-scrub assumption and the simple R·tan(caster) formula holds.
+export function computeTrail(
+  casterDeg: number,
+  _kpiDeg: number,
+  _wheelOffsetMm: number,
+  tireOD: number,
+): number {
+  const casterRad = (casterDeg * Math.PI) / 180
+  return (tireOD / 2) * Math.tan(casterRad)
+}
+
 export function computeGeometry(
   setup: Setup,
   chassis: ChassisBaseline = CHASSIS_BASELINE,
 ): Geometry {
   const rear = computeRearGeometry(setup, chassis)
   const top = computeTopGeometry(setup, rear, chassis)
-  return { rear, top, chassis }
+  const casterDeg = setup.casterSpacerDeg
+  const trailMm = computeTrail(casterDeg, rear.kpiDeg, 0, chassis.tireOD)
+  return { rear, top, chassis, casterDeg, trailMm }
 }

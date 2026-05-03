@@ -17,6 +17,8 @@ export default function TopView({ geometry }: Props) {
   const right = {
     lowerInboard: top.lowerInboard,
     lowerOutboard: top.lowerOutboard,
+    upperInboard: top.upperInboard,
+    upperOutboard: top.upperOutboard,
     wheelCenter: top.wheelCenter,
     rackBall: top.rackBall,
     tieRodOutboard: top.tieRodOutboard,
@@ -24,6 +26,8 @@ export default function TopView({ geometry }: Props) {
   const left = {
     lowerInboard: mirrorX(top.lowerInboard),
     lowerOutboard: mirrorX(top.lowerOutboard),
+    upperInboard: mirrorX(top.upperInboard),
+    upperOutboard: mirrorX(top.upperOutboard),
     wheelCenter: mirrorX(top.wheelCenter),
     rackBall: mirrorX(top.rackBall),
     tieRodOutboard: mirrorX(top.tieRodOutboard),
@@ -71,6 +75,50 @@ export default function TopView({ geometry }: Props) {
           stroke="currentColor"
           strokeOpacity="0.75"
           strokeWidth="2"
+          strokeLinecap="round"
+        />
+
+        {/* Upper arms (top-down projection — picks up fore/aft sweep from caster) */}
+        <line
+          x1={right.upperInboard.x}
+          y1={right.upperInboard.y}
+          x2={right.upperOutboard.x}
+          y2={right.upperOutboard.y}
+          stroke="currentColor"
+          strokeOpacity="0.75"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        <line
+          x1={left.upperInboard.x}
+          y1={left.upperInboard.y}
+          x2={left.upperOutboard.x}
+          y2={left.upperOutboard.y}
+          stroke="currentColor"
+          strokeOpacity="0.75"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+
+        {/* Kingpin axis (top-view projection) — dashed brand red */}
+        <line
+          x1={right.lowerOutboard.x}
+          y1={right.lowerOutboard.y}
+          x2={right.upperOutboard.x}
+          y2={right.upperOutboard.y}
+          stroke={STEERING_RED}
+          strokeWidth="1.5"
+          strokeDasharray="4 3"
+          strokeLinecap="round"
+        />
+        <line
+          x1={left.lowerOutboard.x}
+          y1={left.lowerOutboard.y}
+          x2={left.upperOutboard.x}
+          y2={left.upperOutboard.y}
+          stroke={STEERING_RED}
+          strokeWidth="1.5"
+          strokeDasharray="4 3"
           strokeLinecap="round"
         />
 
@@ -128,8 +176,12 @@ export default function TopView({ geometry }: Props) {
         {/* Pivot dots */}
         <Pivot x={right.lowerInboard.x} y={right.lowerInboard.y} />
         <Pivot x={right.lowerOutboard.x} y={right.lowerOutboard.y} />
+        <Pivot x={right.upperInboard.x} y={right.upperInboard.y} />
+        <Pivot x={right.upperOutboard.x} y={right.upperOutboard.y} />
         <Pivot x={left.lowerInboard.x} y={left.lowerInboard.y} />
         <Pivot x={left.lowerOutboard.x} y={left.lowerOutboard.y} />
+        <Pivot x={left.upperInboard.x} y={left.upperInboard.y} />
+        <Pivot x={left.upperOutboard.x} y={left.upperOutboard.y} />
         <Pivot x={right.rackBall.x} y={right.rackBall.y} />
         <Pivot x={left.rackBall.x} y={left.rackBall.y} />
         <Pivot x={right.tieRodOutboard.x} y={right.tieRodOutboard.y} />
