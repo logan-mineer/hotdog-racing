@@ -1,4 +1,12 @@
-import { LOWER_ARM_LENGTH, TIE_ROD_LENGTH, CASTER_SPACER, UPPER_ARM_LENGTH } from '@/lib/suspension/config'
+import {
+  LOWER_ARM_LENGTH,
+  TIE_ROD_LENGTH,
+  CASTER_SPACER,
+  UPPER_ARM_LENGTH,
+  WHEEL_HEX_THICKNESS,
+  WHEEL_OFFSET,
+  TIRE_OD,
+} from '@/lib/suspension/config'
 
 type Props = {
   lowerArmLength: number
@@ -7,8 +15,14 @@ type Props = {
   onTieRodLengthChange: (value: number) => void
   casterSpacerDeg: number
   onCasterSpacerChange: (value: number) => void
+  wheelHexThicknessMm: number
+  onWheelHexThicknessChange: (value: number) => void
+  wheelOffsetMm: number
+  onWheelOffsetChange: (value: number) => void
   upperArmLength: number
   onUpperArmLengthChange: (value: number) => void
+  tireOD: number
+  onTireODChange: (value: number) => void
 }
 
 export default function SetupPanel({
@@ -18,8 +32,14 @@ export default function SetupPanel({
   onTieRodLengthChange,
   casterSpacerDeg,
   onCasterSpacerChange,
+  wheelHexThicknessMm,
+  onWheelHexThicknessChange,
+  wheelOffsetMm,
+  onWheelOffsetChange,
   upperArmLength,
   onUpperArmLengthChange,
+  tireOD,
+  onTireODChange,
 }: Props) {
   return (
     <div
@@ -60,6 +80,26 @@ export default function SetupPanel({
         onChange={onCasterSpacerChange}
       />
 
+      <Slider
+        label="Wheel Hex Thickness"
+        value={wheelHexThicknessMm}
+        min={WHEEL_HEX_THICKNESS.min}
+        max={WHEEL_HEX_THICKNESS.max}
+        step={WHEEL_HEX_THICKNESS.step}
+        display={v => `${v.toFixed(0)} mm`}
+        onChange={onWheelHexThicknessChange}
+      />
+
+      <Slider
+        label="Wheel Offset"
+        value={wheelOffsetMm}
+        min={WHEEL_OFFSET.min}
+        max={WHEEL_OFFSET.max}
+        step={WHEEL_OFFSET.step}
+        display={v => `${v.toFixed(1)} mm`}
+        onChange={onWheelOffsetChange}
+      />
+
       {/* Chassis config — moves to a collapsible Advanced section in #89. */}
       <p className="mb-3 mt-6 font-mono text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--muted)' }}>
         Chassis
@@ -73,6 +113,16 @@ export default function SetupPanel({
         step={UPPER_ARM_LENGTH.step}
         display={v => `${v.toFixed(1)} mm`}
         onChange={onUpperArmLengthChange}
+      />
+
+      <Slider
+        label="Tire OD"
+        value={tireOD}
+        min={TIRE_OD.min}
+        max={TIRE_OD.max}
+        step={TIRE_OD.step}
+        display={v => `${v.toFixed(1)} mm`}
+        onChange={onTireODChange}
       />
     </div>
   )

@@ -21,8 +21,8 @@ export type ChassisBaseline = {
   // Ride height slider (PRD Setup table) is wired up — at that point ride
   // height will determine the lower-arm angle and this field can be removed.
   staticLowerArmAngleDeg: number
-  // Visualization-only baseline; these gain dedicated sliders in #82.
-  tireOD: number
+  // Visualization-only baseline. tireOD moved to Setup in #82; the remaining
+  // tire/rim dimensions are static chassis defaults until further refinement.
   tireWidth: number
   rimDiameter: number
   rimWidth: number
@@ -39,10 +39,13 @@ export type ChassisBaseline = {
 export const LOWER_ARM_LENGTH: SliderDef = { min: 35, max: 60, step: 0.5, defaultValue: 45 }
 export const TIE_ROD_LENGTH: SliderDef = { min: 30, max: 50, step: 0.5, defaultValue: 40 }
 export const CASTER_SPACER: SliderDef = { min: 0, max: 15, step: 1, defaultValue: 0 }
+export const WHEEL_HEX_THICKNESS: SliderDef = { min: 0, max: 10, step: 1, defaultValue: 5 }
+export const WHEEL_OFFSET: SliderDef = { min: -5, max: 15, step: 0.5, defaultValue: 0 }
 
 // Chassis config — mirror-symmetric, persists per chassis. Inline in the
 // Setup panel for now; the dedicated Advanced collapse lands in #89.
 export const UPPER_ARM_LENGTH: SliderDef = { min: 35, max: 55, step: 0.5, defaultValue: 45 }
+export const TIRE_OD: SliderDef = { min: 50, max: 70, step: 0.5, defaultValue: 60 }
 
 // Chassis baseline. Engineered so that at default LOWER_ARM_LENGTH the kingpin is
 // vertical (camber = 0°) and the wheel sits with its bottom at ground.
@@ -53,7 +56,6 @@ export const CHASSIS_BASELINE: ChassisBaseline = {
   blockUpperY: 53,               // TODO
   knuckleLength: 45,             // TODO
   staticLowerArmAngleDeg: 0,     // TODO — currently horizontal
-  tireOD: 60,                    // TODO
   tireWidth: 24,                 // TODO
   rimDiameter: 35,               // TODO
   rimWidth: 18,                  // TODO

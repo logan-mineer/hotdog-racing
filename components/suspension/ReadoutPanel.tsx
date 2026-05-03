@@ -32,6 +32,10 @@ export default function ReadoutPanel({ geometry }: Props) {
         value={`${geometry.trailMm.toFixed(PRECISION.lengthMm)} mm`}
       />
       <Readout
+        label="Scrub Radius"
+        value={`${geometry.scrubRadiusMm.toFixed(PRECISION.lengthMm)} mm`}
+      />
+      <Readout
         label="Toe (L)"
         value={`${geometry.top.toeDegLeft.toFixed(PRECISION.angleDeg)}°`}
       />
