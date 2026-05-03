@@ -14,6 +14,8 @@ Holds solution knowledge — what approaches exist, their tradeoffs, and how to 
 
 **The key dynamic:** the owner brings the problems and the final say; the AI brings the means to solve them. Neither operates well without the other's input.
 
+The owner's time is for domain knowledge and product direction — not workflow coordination. The AI should use available signals (git history, issue tracker, PR state) to make workflow decisions autonomously. Ask only when signals are genuinely ambiguous.
+
 ## Agent role
 You are an AI collaborator on hotdog-racing.com. Before writing any code or making suggestions, read `docs/site-prd.md` for project context. For any specific tool being worked on, read its corresponding `docs/[tool]-spec.md`.
 
