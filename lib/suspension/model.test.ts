@@ -5,8 +5,9 @@ import {
   computeScrubRadius,
   computeAckermanDelta,
   computeMaxSteeringLock,
+  NEUTRAL_STATE,
 } from './model'
-import type { SteeringSnapshot } from './model'
+import type { SteeringSnapshot, State } from './model'
 import {
   CHASSIS_BASELINE,
   LOWER_ARM_LENGTH,
@@ -523,5 +524,190 @@ describe('computeGeometry — robustness', () => {
         expect(Number.isFinite(geo.rear.wheelCenter.y)).toBe(true)
       }
     }
+  })
+})
+
+describe('computeGeometry — state-aware live geometry', () => {
+  it('reports neutral state and live values matching static geometry when no state is passed', () => {
+    const geo = computeGeometry({ ...DEFAULTS })
+    expect(geo.isStateNeutral).toBe(true)
+    expect(geo.state).toEqual(NEUTRAL_STATE)
+    // Live right-side rear matches the static (right-side-frame) rear.
+    expect(geo.live.right.rear.camberDeg).toBeCloseTo(geo.rear.camberDeg, 9)
+    expect(geo.live.right.rear.lowerOutboard.x).toBeCloseTo(geo.rear.lowerOutboard.x, 9)
+    expect(geo.live.right.rear.wheelCenter.x).toBeCloseTo(geo.rear.wheelCenter.x, 9)
+    // Left-side rear is the static rear mirrored across the chassis centerline.
+    expect(geo.live.left.rear.camberDeg).toBeCloseTo(geo.rear.camberDeg, 9)
+    expect(geo.live.left.rear.wheelCenter.x).toBeCloseTo(-geo.rear.wheelCenter.x, 9)
+    // Live toe is mirror-equal to the static value at neutral state.
+    expect(geo.live.right.top.toeDeg).toBeCloseTo(geo.top.toeDegRight, 9)
+    expect(geo.live.left.top.toeDeg).toBeCloseTo(geo.top.toeDegLeft, 9)
+  })
+
+  it('reports neutral when an explicit neutral state is passed', () => {
+    const geo = computeGeometry({ ...DEFAULTS }, undefined, NEUTRAL_STATE)
+    expect(geo.isStateNeutral).toBe(true)
+  })
+
+  it('reports non-neutral when any state slider leaves zero', () => {
+    const steered = computeGeometry({ ...DEFAULTS }, undefined, { ...NEUTRAL_STATE, steeringInput: 25 })
+    expect(steered.isStateNeutral).toBe(false)
+    const bumped = computeGeometry({ ...DEFAULTS }, undefined, { ...NEUTRAL_STATE, leftWheelTravelMm: 2 })
+    expect(bumped.isStateNeutral).toBe(false)
+    const droopedR = computeGeometry({ ...DEFAULTS }, undefined, { ...NEUTRAL_STATE, rightWheelTravelMm: -3 })
+    expect(droopedR.isStateNeutral).toBe(false)
+  })
+})
+
+describe('computeGeometry — live camber & scrub from wheel travel', () => {
+  // The default CHASSIS_BASELINE is a degenerate parallelogram (lower arm =
+  // upper arm = knuckle = chassisHeight = 45), which produces ~zero camber
+  // gain on bump. Camber-gain assertions need a non-parallelogram chassis.
+  const CAMBER_GAIN_CHASSIS: ChassisBaseline = {
+    ...CHASSIS_BASELINE,
+    knuckleLength: 50,
+  }
+
+  it('drives the bumped side camber away from static while the unbumped side holds', () => {
+    const baseline = computeGeometry({ ...DEFAULTS }, CAMBER_GAIN_CHASSIS)
+    const geo = computeGeometry({ ...DEFAULTS }, CAMBER_GAIN_CHASSIS, {
+      ...NEUTRAL_STATE,
+      rightWheelTravelMm: 5,
+    })
+    expect(Math.abs(geo.live.right.rear.camberDeg - baseline.rear.camberDeg)).toBeGreaterThan(0.1)
+    expect(geo.live.left.rear.camberDeg).toBeCloseTo(baseline.rear.camberDeg, 9)
+  })
+
+  it('moves bump and droop in opposite camber directions on the same side', () => {
+    const baseline = computeGeometry({ ...DEFAULTS }, CAMBER_GAIN_CHASSIS)
+    const bump = computeGeometry({ ...DEFAULTS }, CAMBER_GAIN_CHASSIS, {
+      ...NEUTRAL_STATE,
+      leftWheelTravelMm: 5,
+    })
+    const droop = computeGeometry({ ...DEFAULTS }, CAMBER_GAIN_CHASSIS, {
+      ...NEUTRAL_STATE,
+      leftWheelTravelMm: -5,
+    })
+    const bumpDelta = bump.live.left.rear.camberDeg - baseline.rear.camberDeg
+    const droopDelta = droop.live.left.rear.camberDeg - baseline.rear.camberDeg
+    expect(Math.sign(bumpDelta)).not.toBe(Math.sign(droopDelta))
+  })
+
+  it('shifts live scrub radius per side when that side articulates (KPI changes with travel)', () => {
+    // Use a non-zero hex so the scrub readout is sensitive to KPI changes.
+    const setup = { ...DEFAULTS, wheelHexThicknessMm: 5 }
+    const baseline = computeGeometry(setup, CAMBER_GAIN_CHASSIS)
+    const geo = computeGeometry(setup, CAMBER_GAIN_CHASSIS, {
+      ...NEUTRAL_STATE,
+      leftWheelTravelMm: 5,
+    })
+    expect(Math.abs(geo.live.left.scrubRadiusMm - baseline.scrubRadiusMm)).toBeGreaterThan(0.1)
+    expect(geo.live.right.scrubRadiusMm).toBeCloseTo(baseline.scrubRadiusMm, 9)
+  })
+
+  it('keeps live KPI consistent with -camber on the articulated side', () => {
+    const geo = computeGeometry({ ...DEFAULTS }, CAMBER_GAIN_CHASSIS, {
+      ...NEUTRAL_STATE,
+      rightWheelTravelMm: 4,
+    })
+    expect(geo.live.right.rear.kpiDeg).toBeCloseTo(-geo.live.right.rear.camberDeg, 6)
+  })
+})
+
+describe('computeGeometry — live toe under steering input', () => {
+  // Steering at 50% leaves the linkage well inside its reach envelope on both
+  // sides without landing on the algebraic singularity that occurs at full
+  // lock when rack-to-baseline distance happens to equal the tie rod length.
+  const STEERING_INPUT_50 = 50
+
+  it('drives left and right toe to opposite signs at non-zero steering', () => {
+    const geo = computeGeometry({ ...DEFAULTS }, undefined, {
+      ...NEUTRAL_STATE,
+      steeringInput: STEERING_INPUT_50,
+    })
+    expect(geo.live.right.top.toeDeg).not.toBeCloseTo(geo.live.left.top.toeDeg, 1)
+    // Steering produces opposite-sign rotations on the two sides under the
+    // "+ = toe in for this side" convention used by the live readouts.
+    expect(Math.sign(geo.live.right.top.toeDeg)).not.toBe(Math.sign(geo.live.left.top.toeDeg))
+  })
+
+  it('flips both per-side toe signs when steering input flips sign', () => {
+    const positive = computeGeometry({ ...DEFAULTS }, undefined, {
+      ...NEUTRAL_STATE,
+      steeringInput: STEERING_INPUT_50,
+    })
+    const negative = computeGeometry({ ...DEFAULTS }, undefined, {
+      ...NEUTRAL_STATE,
+      steeringInput: -STEERING_INPUT_50,
+    })
+    expect(Math.sign(positive.live.right.top.toeDeg)).not.toBe(
+      Math.sign(negative.live.right.top.toeDeg),
+    )
+    expect(Math.sign(positive.live.left.top.toeDeg)).not.toBe(
+      Math.sign(negative.live.left.top.toeDeg),
+    )
+  })
+
+  it('produces zero per-side toe deltas at zero steering and neutral travel', () => {
+    const geo = computeGeometry({ ...DEFAULTS }, undefined, NEUTRAL_STATE)
+    expect(geo.live.right.top.toeDeg).toBeCloseTo(geo.top.toeDegRight, 9)
+    expect(geo.live.left.top.toeDeg).toBeCloseTo(geo.top.toeDegLeft, 9)
+  })
+
+  it('moves the live rack ball laterally by steering·effectiveRackTravel/100', () => {
+    // Direct drive: effective rack travel = chassis maxRackTravelMm.
+    const geo = computeGeometry({ ...DEFAULTS }, undefined, { ...NEUTRAL_STATE, steeringInput: 100 })
+    const expectedShift = CHASSIS_BASELINE.maxRackTravelMm
+    // Right rack ball in chassis frame: chassis.rackBallX + shift (positive +x).
+    expect(geo.live.right.top.rackBall.x).toBeCloseTo(CHASSIS_BASELINE.rackBallX + expectedShift, 6)
+    // Left rack ball in chassis frame: −chassis.rackBallX + shift (rack moves
+    // uniformly in chassis +x — both balls shift together).
+    expect(geo.live.left.top.rackBall.x).toBeCloseTo(-CHASSIS_BASELINE.rackBallX + expectedShift, 6)
+  })
+
+  it('scales rack-ball shift by the rack-type effective-travel factor (wiper × 0.9)', () => {
+    const direct = computeGeometry({ ...DEFAULTS }, undefined, { ...NEUTRAL_STATE, steeringInput: 100 })
+    const wiper = computeGeometry({ ...DEFAULTS, steeringRackType: 'wiper' }, undefined, {
+      ...NEUTRAL_STATE,
+      steeringInput: 100,
+    })
+    const directShift = direct.live.right.top.rackBall.x - CHASSIS_BASELINE.rackBallX
+    const wiperShift = wiper.live.right.top.rackBall.x - CHASSIS_BASELINE.rackBallX
+    expect(wiperShift / directShift).toBeCloseTo(0.9, 6)
+  })
+})
+
+describe('computeGeometry — combined state', () => {
+  it('produces finite per-side outputs across combined steering + L/R travel', () => {
+    const cases: State[] = [
+      { steeringInput: 50, leftWheelTravelMm: 3, rightWheelTravelMm: -3 },
+      { steeringInput: -75, leftWheelTravelMm: -5, rightWheelTravelMm: 5 },
+      { steeringInput: 25, leftWheelTravelMm: 8, rightWheelTravelMm: 8 },
+      { steeringInput: -25, leftWheelTravelMm: -8, rightWheelTravelMm: -8 },
+    ]
+    for (const state of cases) {
+      const geo = computeGeometry({ ...DEFAULTS }, undefined, state)
+      for (const side of [geo.live.left, geo.live.right]) {
+        expect(Number.isFinite(side.rear.camberDeg)).toBe(true)
+        expect(Number.isFinite(side.rear.kpiDeg)).toBe(true)
+        expect(Number.isFinite(side.top.toeDeg)).toBe(true)
+        expect(Number.isFinite(side.scrubRadiusMm)).toBe(true)
+        expect(Number.isFinite(side.top.wheelCenter.x)).toBe(true)
+        expect(Number.isFinite(side.top.tieRodOutboard.x)).toBe(true)
+      }
+    }
+  })
+
+  it('does not mutate static readouts when state changes', () => {
+    const baseline = computeGeometry({ ...DEFAULTS })
+    const stated = computeGeometry({ ...DEFAULTS }, undefined, {
+      steeringInput: 50,
+      leftWheelTravelMm: 4,
+      rightWheelTravelMm: -2,
+    })
+    expect(stated.rear.camberDeg).toBeCloseTo(baseline.rear.camberDeg, 9)
+    expect(stated.top.toeDegRight).toBeCloseTo(baseline.top.toeDegRight, 9)
+    expect(stated.scrubRadiusMm).toBeCloseTo(baseline.scrubRadiusMm, 9)
+    expect(stated.ackermanDeltaDeg).toBeCloseTo(baseline.ackermanDeltaDeg, 9)
   })
 })

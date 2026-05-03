@@ -12,6 +12,8 @@ import {
   CARRIER_HEIGHT,
   CARRIER_TIE_ROD_INBOARD_OFFSET,
   STEERING_RACK_FORE_AFT,
+  STEERING_INPUT,
+  WHEEL_TRAVEL,
   type RackType,
 } from '@/lib/suspension/config'
 import { computeGeometry } from '@/lib/suspension/model'
@@ -34,21 +36,35 @@ export default function SuspensionTool() {
   const [carrierHeightMm, setCarrierHeightMm] = useState(CARRIER_HEIGHT.defaultValue)
   const [steeringRackType, setSteeringRackType] = useState<RackType>('direct-drive')
 
+  // State sliders — never persist; useState defaults guarantee neutral on every page load.
+  const [steeringInput, setSteeringInput] = useState(STEERING_INPUT.defaultValue)
+  const [leftWheelTravelMm, setLeftWheelTravelMm] = useState(WHEEL_TRAVEL.defaultValue)
+  const [rightWheelTravelMm, setRightWheelTravelMm] = useState(WHEEL_TRAVEL.defaultValue)
+  const [showGhost, setShowGhost] = useState(true)
+
   const geometry = useMemo(
     () =>
-      computeGeometry({
-        lowerArmLength,
-        tieRodLength,
-        casterSpacerDeg,
-        upperArmLength,
-        wheelHexThicknessMm,
-        wheelOffsetMm,
-        tireOD,
-        carrierTieRodInboardOffsetMm,
-        steeringRackForeAftMm,
-        carrierHeightMm,
-        steeringRackType,
-      }),
+      computeGeometry(
+        {
+          lowerArmLength,
+          tieRodLength,
+          casterSpacerDeg,
+          upperArmLength,
+          wheelHexThicknessMm,
+          wheelOffsetMm,
+          tireOD,
+          carrierTieRodInboardOffsetMm,
+          steeringRackForeAftMm,
+          carrierHeightMm,
+          steeringRackType,
+        },
+        undefined,
+        {
+          steeringInput,
+          leftWheelTravelMm,
+          rightWheelTravelMm,
+        },
+      ),
     [
       lowerArmLength,
       tieRodLength,
@@ -61,6 +77,9 @@ export default function SuspensionTool() {
       steeringRackForeAftMm,
       carrierHeightMm,
       steeringRackType,
+      steeringInput,
+      leftWheelTravelMm,
+      rightWheelTravelMm,
     ],
   )
 
@@ -109,7 +128,7 @@ export default function SuspensionTool() {
                 </p>
               </div>
               <div className="aspect-[16/10] w-full" style={{ color: 'var(--foreground)' }}>
-                <TopView geometry={geometry} />
+                <TopView geometry={geometry} showGhost={showGhost} />
               </div>
             </div>
 
@@ -123,7 +142,7 @@ export default function SuspensionTool() {
                 </p>
               </div>
               <div className="aspect-[16/7] w-full" style={{ color: 'var(--foreground)' }}>
-                <RearView geometry={geometry} />
+                <RearView geometry={geometry} showGhost={showGhost} />
               </div>
             </div>
           </div>
@@ -132,7 +151,17 @@ export default function SuspensionTool() {
         </div>
 
         <div className="mt-4">
-          <StatePanel />
+          <StatePanel
+            steeringInput={steeringInput}
+            onSteeringInputChange={setSteeringInput}
+            leftWheelTravelMm={leftWheelTravelMm}
+            onLeftWheelTravelChange={setLeftWheelTravelMm}
+            rightWheelTravelMm={rightWheelTravelMm}
+            onRightWheelTravelChange={setRightWheelTravelMm}
+            showGhost={showGhost}
+            onShowGhostChange={setShowGhost}
+            isStateNeutral={geometry.isStateNeutral}
+          />
         </div>
       </div>
     </section>

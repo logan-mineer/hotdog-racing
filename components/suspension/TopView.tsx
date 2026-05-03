@@ -1,4 +1,4 @@
-import type { Geometry } from '@/lib/suspension/model'
+import type { Geometry, SideTopGeometry } from '@/lib/suspension/model'
 
 const VIEW_WIDTH = 320
 const VIEW_HEIGHT = 200
@@ -7,31 +7,27 @@ const VIEW_Y_MIN = -VIEW_HEIGHT / 2
 
 type Props = {
   geometry: Geometry
+  showGhost?: boolean
 }
 
 const STEERING_RED = '#FF0020'
 
-export default function TopView({ geometry }: Props) {
-  const { top, chassis, setup } = geometry
-
-  const right = {
-    lowerInboard: top.lowerInboard,
-    lowerOutboard: top.lowerOutboard,
-    upperInboard: top.upperInboard,
-    upperOutboard: top.upperOutboard,
-    wheelCenter: top.wheelCenter,
-    rackBall: top.rackBall,
-    tieRodOutboard: top.tieRodOutboard,
+export default function TopView({ geometry, showGhost = true }: Props) {
+  const { live, isStateNeutral, chassis, setup } = geometry
+  const right = live.right.top
+  const left = live.left.top
+  const ghost = showGhost && !isStateNeutral
+  const restingRight: SideTopGeometry = {
+    lowerInboard: geometry.top.lowerInboard,
+    lowerOutboard: geometry.top.lowerOutboard,
+    upperInboard: geometry.top.upperInboard,
+    upperOutboard: geometry.top.upperOutboard,
+    wheelCenter: geometry.top.wheelCenter,
+    rackBall: geometry.top.rackBall,
+    tieRodOutboard: geometry.top.tieRodOutboard,
+    toeDeg: geometry.top.toeDegRight,
   }
-  const left = {
-    lowerInboard: mirrorX(top.lowerInboard),
-    lowerOutboard: mirrorX(top.lowerOutboard),
-    upperInboard: mirrorX(top.upperInboard),
-    upperOutboard: mirrorX(top.upperOutboard),
-    wheelCenter: mirrorX(top.wheelCenter),
-    rackBall: mirrorX(top.rackBall),
-    tieRodOutboard: mirrorX(top.tieRodOutboard),
-  }
+  const restingLeft = mirrorTop(geometry.top)
 
   // SVG y is flipped relative to math y (+ y math = forward). Group flip lets
   // children use math coords directly so visual "forward" stays at the top.
@@ -55,6 +51,24 @@ export default function TopView({ geometry }: Props) {
           strokeWidth="1"
           strokeDasharray="4 3"
         />
+
+        {/* Ghost (resting) — wheel outline + kingpin axis only, behind live geometry */}
+        {ghost && (
+          <>
+            <Ghost
+              top={restingRight}
+              tireOD={setup.tireOD}
+              tireWidth={chassis.tireWidth}
+              toeSign={1}
+            />
+            <Ghost
+              top={restingLeft}
+              tireOD={setup.tireOD}
+              tireWidth={chassis.tireWidth}
+              toeSign={-1}
+            />
+          </>
+        )}
 
         {/* Lower arms (top-down projection — purely lateral in v1) */}
         <line
@@ -122,7 +136,7 @@ export default function TopView({ geometry }: Props) {
           strokeLinecap="round"
         />
 
-        {/* Wheel footprints — rotated by toe so steering changes are visible.
+        {/* Wheel footprints — rotated by per-side toe so steering changes are visible.
             Sign flips per side so positive toe (toe in) tilts both wheel fronts
             toward the chassis centerline. */}
         <Wheel
@@ -131,7 +145,7 @@ export default function TopView({ geometry }: Props) {
           tireOD={setup.tireOD}
           rimWidth={chassis.rimWidth}
           rimOD={chassis.rimDiameter}
-          toeDeg={top.toeDegRight}
+          toeDeg={right.toeDeg}
         />
         <Wheel
           center={left.wheelCenter}
@@ -139,7 +153,7 @@ export default function TopView({ geometry }: Props) {
           tireOD={setup.tireOD}
           rimWidth={chassis.rimWidth}
           rimOD={chassis.rimDiameter}
-          toeDeg={-top.toeDegLeft}
+          toeDeg={-left.toeDeg}
         />
 
         {/* Steering rack — connects the two rack balls laterally */}
@@ -238,10 +252,63 @@ function Wheel({
   )
 }
 
+// Top-view ghost: wheel outline (tire only, rotated by static toe) + the
+// kingpin segment from lowerOutboard to upperOutboard. PRD spec: foreground
+// at 30%, 1.5px solid.
+function Ghost({
+  top,
+  tireOD,
+  tireWidth,
+  toeSign,
+}: {
+  top: SideTopGeometry
+  tireOD: number
+  tireWidth: number
+  toeSign: 1 | -1
+}) {
+  const transform = `rotate(${toeSign * top.toeDeg} ${top.wheelCenter.x} ${top.wheelCenter.y})`
+  return (
+    <g opacity="0.3">
+      <line
+        x1={top.lowerOutboard.x}
+        y1={top.lowerOutboard.y}
+        x2={top.upperOutboard.x}
+        y2={top.upperOutboard.y}
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <g transform={transform}>
+        <rect
+          x={top.wheelCenter.x - tireWidth / 2}
+          y={top.wheelCenter.y - tireOD / 2}
+          width={tireWidth}
+          height={tireOD}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          rx="2"
+        />
+      </g>
+    </g>
+  )
+}
+
 function Pivot({ x, y }: { x: number; y: number }) {
   return <circle cx={x} cy={y} r={2} fill="currentColor" />
 }
 
-function mirrorX(p: { x: number; y: number }) {
-  return { x: -p.x, y: p.y }
+function mirrorTop(top: Geometry['top']): SideTopGeometry {
+  // Geometry.top is the right-side resting top; mirror it across the chassis
+  // centerline so the ghost can render the left-side resting wheel position.
+  return {
+    lowerInboard: { x: -top.lowerInboard.x, y: top.lowerInboard.y },
+    lowerOutboard: { x: -top.lowerOutboard.x, y: top.lowerOutboard.y },
+    upperInboard: { x: -top.upperInboard.x, y: top.upperInboard.y },
+    upperOutboard: { x: -top.upperOutboard.x, y: top.upperOutboard.y },
+    wheelCenter: { x: -top.wheelCenter.x, y: top.wheelCenter.y },
+    rackBall: { x: -top.rackBall.x, y: top.rackBall.y },
+    tieRodOutboard: { x: -top.tieRodOutboard.x, y: top.tieRodOutboard.y },
+    toeDeg: top.toeDegLeft,
+  }
 }

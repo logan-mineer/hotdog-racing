@@ -41,11 +41,46 @@ export type TopGeometry = {
   wheelCenter: Point
   rackBall: Point        // right-side rack ball
   tieRodOutboard: Point  // right-side tie rod outboard attach (knuckle pickup)
-  // Toe per side, signed: positive = toe in (front of wheel toward chassis centerline).
-  // Equal under mirror-symmetric setup with no steering input; diverge once
-  // the steering state slider lands in #84.
+  // Static toe (resting state) — positive = toe in. Per side at the data layer
+  // because the live `Geometry.live` per-side readouts diverge under steering;
+  // the static pair is mirror-equal, exposed as L/R for renderer symmetry.
   toeDegRight: number
   toeDegLeft: number
+}
+
+// Ephemeral car articulation — never persists, resets on every page load.
+// Steering input drives top-view rack offset; wheel travel drives per-side
+// rear-view lower-arm rotation. Range bounds live in `config.ts`.
+export type State = {
+  steeringInput: number          // -100 to +100; percent of effective rack travel
+  leftWheelTravelMm: number      // signed bump (positive) / droop (negative) from ride height
+  rightWheelTravelMm: number
+}
+
+export const NEUTRAL_STATE: State = {
+  steeringInput: 0,
+  leftWheelTravelMm: 0,
+  rightWheelTravelMm: 0,
+}
+
+export type SideTopGeometry = {
+  lowerInboard: Point
+  lowerOutboard: Point
+  upperInboard: Point
+  upperOutboard: Point
+  wheelCenter: Point
+  rackBall: Point
+  tieRodOutboard: Point
+  toeDeg: number   // signed; positive = toe in for this side
+}
+
+// Per-side live geometry in chassis frame (right at +x, left at -x). Renderer
+// uses these directly — no further mirroring. Equal to the resting geometry
+// (within mirror-symmetry) when the state is neutral.
+export type SideGeometry = {
+  rear: RearGeometry
+  top: SideTopGeometry
+  scrubRadiusMm: number
 }
 
 export type MaxSteeringLockResult = {
@@ -55,6 +90,8 @@ export type MaxSteeringLockResult = {
 }
 
 export type Geometry = {
+  // Resting (state-neutral, mirror-symmetric) geometry — drives static readouts
+  // and the ghost overlay.
   rear: RearGeometry
   top: TopGeometry
   chassis: ChassisBaseline   // exposed so renderers can size wheels, rims, etc.
@@ -64,6 +101,10 @@ export type Geometry = {
   scrubRadiusMm: number      // signed: positive = wheel contact outboard of kingpin axis at ground
   ackermanDeltaDeg: number   // |inner| − |outer| at full lock; 0° = parallel, positive = inner turns more
   maxSteeringLock: MaxSteeringLockResult
+  // State-aware live geometry — renderer reads these for the articulated wireframe.
+  state: State
+  isStateNeutral: boolean
+  live: { left: SideGeometry; right: SideGeometry }
 }
 
 // Intersect two circles in 2D. Returns the intersection point on the side
@@ -101,11 +142,22 @@ function circleCircleIntersect(
   return p1.x <= p2.x ? p1 : p2
 }
 
-function computeRearGeometry(setup: Setup, chassis: ChassisBaseline): RearGeometry {
+function computeRearGeometry(
+  setup: Setup,
+  chassis: ChassisBaseline,
+  travelMm: number = 0,
+): RearGeometry {
   const lowerInboard: Point = { x: chassis.blockLowerInboardX, y: chassis.blockLowerY }
   const upperInboard: Point = { x: chassis.blockUpperInboardX, y: chassis.blockUpperY }
 
-  const armAngleRad = (chassis.staticLowerArmAngleDeg * Math.PI) / 180
+  // Travel raises (bump, +) or drops (droop, −) the outboard end of the lower
+  // arm by travelMm. The arm length is fixed, so the new arm angle satisfies
+  //   L·sin(θ_new) = L·sin(θ_static) + travelMm
+  // Clamp to avoid asin domain blowup at extreme over-bump (proper
+  // GeometryError lands in #86).
+  const baseAngleRad = (chassis.staticLowerArmAngleDeg * Math.PI) / 180
+  const sinTarget = Math.sin(baseAngleRad) + travelMm / setup.lowerArmLength
+  const armAngleRad = Math.asin(Math.max(-0.999, Math.min(0.999, sinTarget)))
   const lowerOutboard: Point = {
     x: lowerInboard.x + setup.lowerArmLength * Math.cos(armAngleRad),
     y: lowerInboard.y + setup.lowerArmLength * Math.sin(armAngleRad),
@@ -185,11 +237,16 @@ function intersectClosestToBaseline(
   return d1 <= d2 ? p1 : p2
 }
 
-function computeTopGeometry(
+// Per-side top geometry in right-side-relative frame (positive x = outboard
+// for that side). `rackOffsetMm` is the lateral shift of the rack ball in the
+// same frame — for the right side this equals the chassis-frame steering
+// shift; for the left side it flips sign because the left frame is mirrored.
+function computeRightSideTopGeometry(
   setup: Setup,
-  rear: RearGeometry,
   chassis: ChassisBaseline,
-): TopGeometry {
+  rear: RearGeometry,
+  rackOffsetMm: number = 0,
+): SideTopGeometry {
   // v1 top-view collapse: the kingpin axis projects to a single point at the
   // midpoint of the two kingpin balls — distinct from the wheel center once
   // wheel offset displaces the rim laterally (#82). The knuckle's tie rod
@@ -204,9 +261,10 @@ function computeTopGeometry(
     x: kingpin.x + chassis.knuckleTieRodOffsetX - setup.carrierTieRodInboardOffsetMm,
     y: kingpin.y + chassis.knuckleTieRodOffsetY,
   }
-  // Steering rack fore/aft slides the entire rack along the chassis longitudinal axis.
+  // Steering rack fore/aft slides the rack along the chassis longitudinal
+  // axis; steering input shifts it laterally by `rackOffsetMm`.
   const rackBall: Point = {
-    x: chassis.rackBallX,
+    x: chassis.rackBallX + rackOffsetMm,
     y: chassis.rackBallY + setup.steeringRackForeAftMm,
   }
   const knuckleRadius = Math.hypot(
@@ -229,7 +287,7 @@ function computeTopGeometry(
   let rotationRad = currentAngle - baselineAngle
   if (rotationRad > Math.PI) rotationRad -= 2 * Math.PI
   if (rotationRad <= -Math.PI) rotationRad += 2 * Math.PI
-  const toeDegRight = rotationRad * (180 / Math.PI)
+  const toeDeg = rotationRad * (180 / Math.PI)
 
   // Caster spacers shift the entire upper hinge pin fore/aft on the chassis,
   // so both ends of the upper arm translate together and the arm stays
@@ -250,8 +308,79 @@ function computeTopGeometry(
     wheelCenter: { x: rear.wheelCenter.x, y: 0 },
     rackBall,
     tieRodOutboard,
-    toeDegRight,
-    toeDegLeft: toeDegRight,
+    toeDeg,
+  }
+}
+
+function computeTopGeometry(
+  setup: Setup,
+  rear: RearGeometry,
+  chassis: ChassisBaseline,
+): TopGeometry {
+  const right = computeRightSideTopGeometry(setup, chassis, rear, 0)
+  return {
+    lowerInboard: right.lowerInboard,
+    lowerOutboard: right.lowerOutboard,
+    upperInboard: right.upperInboard,
+    upperOutboard: right.upperOutboard,
+    wheelCenter: right.wheelCenter,
+    rackBall: right.rackBall,
+    tieRodOutboard: right.tieRodOutboard,
+    toeDegRight: right.toeDeg,
+    toeDegLeft: right.toeDeg,
+  }
+}
+
+function mirrorRearAcrossX(rear: RearGeometry): RearGeometry {
+  return {
+    lowerInboard: { x: -rear.lowerInboard.x, y: rear.lowerInboard.y },
+    lowerOutboard: { x: -rear.lowerOutboard.x, y: rear.lowerOutboard.y },
+    upperInboard: { x: -rear.upperInboard.x, y: rear.upperInboard.y },
+    upperOutboard: { x: -rear.upperOutboard.x, y: rear.upperOutboard.y },
+    wheelCenter: { x: -rear.wheelCenter.x, y: rear.wheelCenter.y },
+    camberDeg: rear.camberDeg,
+    kpiDeg: rear.kpiDeg,
+  }
+}
+
+function mirrorTopAcrossX(top: SideTopGeometry): SideTopGeometry {
+  return {
+    lowerInboard: { x: -top.lowerInboard.x, y: top.lowerInboard.y },
+    lowerOutboard: { x: -top.lowerOutboard.x, y: top.lowerOutboard.y },
+    upperInboard: { x: -top.upperInboard.x, y: top.upperInboard.y },
+    upperOutboard: { x: -top.upperOutboard.x, y: top.upperOutboard.y },
+    wheelCenter: { x: -top.wheelCenter.x, y: top.wheelCenter.y },
+    rackBall: { x: -top.rackBall.x, y: top.rackBall.y },
+    tieRodOutboard: { x: -top.tieRodOutboard.x, y: top.tieRodOutboard.y },
+    toeDeg: top.toeDeg,   // toe sign is "+ = toe in" per side; mirror preserves it
+  }
+}
+
+function computeSide(
+  setup: Setup,
+  chassis: ChassisBaseline,
+  travelMm: number,
+  rackOffsetMm: number,
+  side: 'left' | 'right',
+): SideGeometry {
+  // For the left side the local rack offset flips sign — a +x chassis-frame
+  // shift becomes −x in the mirrored left frame.
+  const localRackOffset = side === 'right' ? rackOffsetMm : -rackOffsetMm
+  const rear = computeRearGeometry(setup, chassis, travelMm)
+  const top = computeRightSideTopGeometry(setup, chassis, rear, localRackOffset)
+  const scrubRadiusMm = computeScrubRadius(
+    setup.wheelOffsetMm,
+    setup.wheelHexThicknessMm,
+    rear.kpiDeg,
+    setup.tireOD,
+  )
+  if (side === 'right') {
+    return { rear, top, scrubRadiusMm }
+  }
+  return {
+    rear: mirrorRearAcrossX(rear),
+    top: mirrorTopAcrossX(top),
+    scrubRadiusMm,
   }
 }
 
@@ -465,6 +594,7 @@ function buildSteeringSnapshot(
 export function computeGeometry(
   setup: Setup,
   chassis: ChassisBaseline = CHASSIS_BASELINE,
+  state: State = NEUTRAL_STATE,
 ): Geometry {
   const rear = computeRearGeometry(setup, chassis)
   const top = computeTopGeometry(setup, rear, chassis)
@@ -479,6 +609,21 @@ export function computeGeometry(
   const snapshot = buildSteeringSnapshot(setup, rear, top, chassis)
   const ackermanDeltaDeg = computeAckermanDelta(snapshot)
   const maxSteeringLock = computeMaxSteeringLock(snapshot)
+
+  const isStateNeutral =
+    state.steeringInput === 0 &&
+    state.leftWheelTravelMm === 0 &&
+    state.rightWheelTravelMm === 0
+  // Steering input scales the rack lateral travel by the rack-type-effective
+  // limit, so 100% = the maximum the linkage actually delivers.
+  const rackOffsetMm =
+    (state.steeringInput / 100) *
+    effectiveRackTravel(chassis.maxRackTravelMm, setup.steeringRackType)
+  const live = {
+    right: computeSide(setup, chassis, state.rightWheelTravelMm, rackOffsetMm, 'right'),
+    left: computeSide(setup, chassis, state.leftWheelTravelMm, rackOffsetMm, 'left'),
+  }
+
   return {
     rear,
     top,
@@ -489,5 +634,8 @@ export function computeGeometry(
     scrubRadiusMm,
     ackermanDeltaDeg,
     maxSteeringLock,
+    state,
+    isStateNeutral,
+    live,
   }
 }
