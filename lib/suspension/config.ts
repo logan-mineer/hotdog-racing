@@ -63,6 +63,12 @@ export const TIRE_OD: SliderDef = { min: 50, max: 70, step: 0.5, defaultValue: 6
 // lower kingpin ball. Default = knuckleLength/2 (hub at midpoint).
 export const CARRIER_HEIGHT: SliderDef = { min: 10, max: 35, step: 0.5, defaultValue: 22.5 }
 
+// Ephemeral car articulation — never persists, resets on every page load.
+// Steering input scales the rack lateral travel (100% = full lock); wheel
+// travel is bump (positive) or droop (negative) from ride height per side.
+export const STEERING_INPUT: SliderDef = { min: -100, max: 100, step: 1, defaultValue: 0 }
+export const WHEEL_TRAVEL: SliderDef = { min: -10, max: 10, step: 0.5, defaultValue: 0 }
+
 // Chassis baseline. Engineered so that at default LOWER_ARM_LENGTH the kingpin is
 // vertical (camber = 0°) and the wheel sits with its bottom at ground.
 export const CHASSIS_BASELINE: ChassisBaseline = {

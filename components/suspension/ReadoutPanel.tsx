@@ -59,6 +59,38 @@ export default function ReadoutPanel({ geometry }: Props) {
           {geometry.maxSteeringLock.reason}
         </p>
       )}
+
+      {!geometry.isStateNeutral && (
+        <>
+          <p
+            className="mb-3 mt-6 font-mono text-xs uppercase tracking-[0.2em]"
+            style={{ color: 'var(--muted)' }}
+          >
+            Live
+          </p>
+          <PairedReadout
+            label="Camber"
+            unit="°"
+            left={geometry.live.left.rear.camberDeg}
+            right={geometry.live.right.rear.camberDeg}
+            precision={PRECISION.angleDeg}
+          />
+          <PairedReadout
+            label="Toe"
+            unit="°"
+            left={geometry.live.left.top.toeDeg}
+            right={geometry.live.right.top.toeDeg}
+            precision={PRECISION.angleDeg}
+          />
+          <PairedReadout
+            label="Scrub"
+            unit=" mm"
+            left={geometry.live.left.scrubRadiusMm}
+            right={geometry.live.right.scrubRadiusMm}
+            precision={PRECISION.lengthMm}
+          />
+        </>
+      )}
     </div>
   )
 }
@@ -72,6 +104,32 @@ function Readout({ label, value }: { label: string; value: string }) {
       <span className="font-mono text-sm tabular-nums" style={{ color: 'var(--foreground)' }}>
         {value}
       </span>
+    </div>
+  )
+}
+
+function PairedReadout({
+  label,
+  unit,
+  left,
+  right,
+  precision,
+}: {
+  label: string
+  unit: string
+  left: number
+  right: number
+  precision: number
+}) {
+  return (
+    <div className="mb-3">
+      <span className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+        {label}
+      </span>
+      <div className="mt-0.5 grid grid-cols-2 gap-2 font-mono text-sm tabular-nums" style={{ color: 'var(--foreground)' }}>
+        <span>L {left.toFixed(precision)}{unit}</span>
+        <span>R {right.toFixed(precision)}{unit}</span>
+      </div>
     </div>
   )
 }

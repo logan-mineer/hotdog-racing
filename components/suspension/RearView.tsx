@@ -1,4 +1,4 @@
-import type { Geometry } from '@/lib/suspension/model'
+import type { Geometry, RearGeometry } from '@/lib/suspension/model'
 
 const VIEW_WIDTH = 320
 const VIEW_HEIGHT = 130
@@ -8,14 +8,15 @@ const STEERING_RED = '#FF0020'
 
 type Props = {
   geometry: Geometry
+  showGhost?: boolean
 }
 
-export default function RearView({ geometry }: Props) {
-  const { rear, chassis, setup } = geometry
-
-  // Right side as computed; left side is mirrored across the chassis centerline.
-  const right = rear
-  const left = mirrorRear(rear)
+export default function RearView({ geometry, showGhost = true }: Props) {
+  const { live, isStateNeutral, chassis, setup } = geometry
+  const right = live.right.rear
+  const left = live.left.rear
+  const ghost = showGhost && !isStateNeutral
+  const restingLeft = mirrorRear(geometry.rear)
 
   return (
     <svg
@@ -57,6 +58,14 @@ export default function RearView({ geometry }: Props) {
           strokeWidth="1"
           strokeDasharray="4 3"
         />
+
+        {/* Ghost (resting) — wheel outline + kingpin axis only, behind live geometry */}
+        {ghost && (
+          <>
+            <Ghost rear={geometry.rear} tireOD={setup.tireOD} tireWidth={chassis.tireWidth} />
+            <Ghost rear={restingLeft} tireOD={setup.tireOD} tireWidth={chassis.tireWidth} />
+          </>
+        )}
 
         {/* Lower arms */}
         <line
@@ -214,11 +223,50 @@ function Wheel({
   )
 }
 
+function Ghost({
+  rear,
+  tireOD,
+  tireWidth,
+}: {
+  rear: RearGeometry
+  tireOD: number
+  tireWidth: number
+}) {
+  // PRD ghost: wheel outline + kingpin axis only, foreground at 30%, 1.5px solid.
+  const sign = rear.wheelCenter.x >= 0 ? -1 : 1
+  const transform = `rotate(${sign * rear.camberDeg} ${rear.wheelCenter.x} ${rear.wheelCenter.y})`
+  return (
+    <g opacity="0.3">
+      <line
+        x1={rear.lowerOutboard.x}
+        y1={rear.lowerOutboard.y}
+        x2={rear.upperOutboard.x}
+        y2={rear.upperOutboard.y}
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <g transform={transform}>
+        <rect
+          x={rear.wheelCenter.x - tireWidth / 2}
+          y={rear.wheelCenter.y - tireOD / 2}
+          width={tireWidth}
+          height={tireOD}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          rx="2"
+        />
+      </g>
+    </g>
+  )
+}
+
 function Pivot({ x, y }: { x: number; y: number }) {
   return <circle cx={x} cy={y} r={2} fill="currentColor" />
 }
 
-function mirrorRear(rear: Geometry['rear']): Geometry['rear'] {
+function mirrorRear(rear: RearGeometry): RearGeometry {
   return {
     lowerInboard: { x: -rear.lowerInboard.x, y: rear.lowerInboard.y },
     lowerOutboard: { x: -rear.lowerOutboard.x, y: rear.lowerOutboard.y },
