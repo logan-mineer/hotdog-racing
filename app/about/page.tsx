@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
-import { resumeEntries, buildSpecs, partners } from '@/lib/about/config'
+import { resumeEntries, buildSpecs } from '@/lib/about/config'
+import { partners } from '@/lib/partners/config'
 
 export const metadata: Metadata = {
   title: 'About',
@@ -189,19 +190,50 @@ function PartnersSection() {
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {partners.map(p => (
-            <a
+            <div
               key={p.name}
-              href={p.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-between rounded-lg border px-5 py-4 transition-colors hover:border-accent"
+              className="flex items-center gap-4 rounded-lg border px-4 py-3"
               style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
             >
-              <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
-                {p.name}
-              </span>
-              <span className="font-mono text-xs text-accent">{p.handle}</span>
-            </a>
+              {p.logoUrl ? (
+                <div
+                  className="flex h-12 w-20 shrink-0 items-center justify-center rounded"
+                  style={{ background: '#2e2e2e' }}
+                >
+                  <img
+                    src={p.logoUrl}
+                    alt={p.name}
+                    className="h-8 w-auto object-contain"
+                  />
+                </div>
+              ) : null}
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+                  {p.name}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-xs">
+                  <a
+                    href={p.instagramUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent hover:underline"
+                  >
+                    {p.handle}
+                  </a>
+                  {p.websiteUrl && (
+                    <a
+                      href={p.websiteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline"
+                      style={{ color: 'var(--muted)' }}
+                    >
+                      Website ↗
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
           ))}
         </div>
       </div>

@@ -62,18 +62,3 @@ export const buildSpecs: SpecRow[] = [
   { label: 'Competition Body', value: 'ReveD GR Corolla' },
 ]
 
-export type Partner = {
-  name: string
-  handle: string
-  url: string
-}
-
-export const partners: Partner[] = [
-  { name: 'Drift-PDX', handle: '@drift_pdx', url: 'https://www.instagram.com/drift_pdx/' },
-  { name: 'Team Yokomo', handle: '@official_yokomo', url: 'https://www.instagram.com/official_yokomo/' },
-  { name: 'Acuvance', handle: '@acuvance_usa', url: 'https://www.instagram.com/acuvance_usa/' },
-  { name: '1UP Racing', handle: '@1up_racing', url: 'https://www.instagram.com/1up_racing/' },
-  { name: 'SP Designs RC', handle: '@spdesignsrc', url: 'https://www.instagram.com/spdesignsrc/' },
-  { name: 'Team PDX', handle: '@teampdxrcdrift', url: 'https://www.instagram.com/teampdxrcdrift/' },
-  { name: 'Team D-Style', handle: '@team_d_style', url: 'https://www.instagram.com/team_d_style/' },
-]
