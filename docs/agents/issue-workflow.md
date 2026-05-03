@@ -77,6 +77,14 @@ Wait for the user's approval before proceeding.
 
 Once the user approves, commit the changes and open a PR referencing the issue (e.g. `Closes #10`). The PR description should include what was built and any notable decisions. The Vercel preview URL will be available on the PR for final visual verification.
 
+### 10. After merge
+
+When the owner confirms the PR is merged, reply with:
+
+> Before we continue — check `/context` for token usage and `/usage` for session window, then let me know when you're ready.
+
+Wait for the owner to confirm before picking up the next issue.
+
 ## Amending a spec mid-project
 
 When new problems or ideas surface during development — from the user, from testing, or from implementation discoveries — follow this sequence:
