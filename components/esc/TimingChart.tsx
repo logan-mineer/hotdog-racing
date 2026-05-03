@@ -44,9 +44,20 @@ export default function TimingChart({
       const ghost = params.turboActive ? torquePowerCurve({ ...params, turboActive: false }) : null
       const maxRPM = live[live.length - 1].rpm
 
+      // Shared upper bound keeps gridlines aligned with both axes' tick labels.
+      const visible = ghost ? [live, ref, ghost] : [live, ref]
+      let peak = 0
+      for (const curve of visible) {
+        for (const p of curve) {
+          if (p.torque > peak) peak = p.torque
+          if (p.power > peak) peak = p.power
+        }
+      }
+      const yMax = Math.max(100, Math.ceil(peak / 25) * 25)
+
       const x = d3.scaleLinear().domain([0, maxRPM]).range([0, innerW])
-      const yL = d3.scaleLinear().domain([0, 100]).range([innerH, 0])
-      const yR = d3.scaleLinear().domain([0, 100]).range([innerH, 0])
+      const yL = d3.scaleLinear().domain([0, yMax]).range([innerH, 0])
+      const yR = d3.scaleLinear().domain([0, yMax]).range([innerH, 0])
 
       const svg = d3.select(svgEl)
       svg.attr('width', width).attr('height', height).selectAll('*').remove()
