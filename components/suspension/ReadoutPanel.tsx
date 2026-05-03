@@ -19,6 +19,14 @@ export default function ReadoutPanel({ geometry }: Props) {
         label="Camber"
         value={`${geometry.rear.camberDeg.toFixed(PRECISION.angleDeg)}°`}
       />
+      <Readout
+        label="Toe (L)"
+        value={`${geometry.top.toeDegLeft.toFixed(PRECISION.angleDeg)}°`}
+      />
+      <Readout
+        label="Toe (R)"
+        value={`${geometry.top.toeDegRight.toFixed(PRECISION.angleDeg)}°`}
+      />
     </div>
   )
 }

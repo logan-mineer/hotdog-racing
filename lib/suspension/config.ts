@@ -27,10 +27,18 @@ export type ChassisBaseline = {
   tireWidth: number
   rimDiameter: number
   rimWidth: number
+  // Top-view plane (y = +forward, x = +outboard right; left mirrors).
+  // Steering geometry. Engineered so that at default LOWER_ARM_LENGTH and default
+  // TIE_ROD_LENGTH the right-side knuckle sits at zero rotation (zero toe).
+  rackBallX: number              // rack ball x position (right side; left mirrors)
+  rackBallY: number              // rack ball y position (negative = behind front axle)
+  knuckleTieRodOffsetX: number   // tie rod attach offset from kingpin in baseline knuckle frame
+  knuckleTieRodOffsetY: number
 }
 
 // Driver-tunable
 export const LOWER_ARM_LENGTH: SliderDef = { min: 35, max: 60, step: 0.5, defaultValue: 45 }
+export const TIE_ROD_LENGTH: SliderDef = { min: 30, max: 50, step: 0.5, defaultValue: 40 }
 
 // Chassis baseline. Engineered so that at default LOWER_ARM_LENGTH the kingpin is
 // vertical (camber = 0°) and the wheel sits with its bottom at ground.
@@ -46,6 +54,13 @@ export const CHASSIS_BASELINE: ChassisBaseline = {
   tireWidth: 24,                 // TODO
   rimDiameter: 35,               // TODO
   rimWidth: 18,                  // TODO
+  // Top-view steering geometry — at default lowerArm=45 the right kingpin sits
+  // at top-view (70, 0); knuckle attach baseline is (60, -10); rack ball at
+  // (20, -10) gives a 40mm tie rod for zero toe at TIE_ROD_LENGTH.defaultValue.
+  rackBallX: 20,                 // TODO
+  rackBallY: -10,                // TODO
+  knuckleTieRodOffsetX: -10,     // TODO
+  knuckleTieRodOffsetY: -10,     // TODO
 }
 
 // Decimal precision for readouts (per PRD: 0.1° / 0.1mm / integer %)
