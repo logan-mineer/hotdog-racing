@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import * as d3 from 'd3'
 import { torquePowerCurve } from '@/lib/esc/model'
-import type { TorquePowerParams } from '@/lib/esc/model'
+import type { TorquePowerParams, TorquePowerPoint } from '@/lib/esc/model'
 
 type Props = {
   params: TorquePowerParams
@@ -22,6 +22,9 @@ export default function TimingChart({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  const tooltipRef = useRef<HTMLDivElement>(null)
+  const updateRef = useRef<((containerX: number) => void) | null>(null)
+  const hideRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     const container = containerRef.current
@@ -106,11 +109,11 @@ export default function TimingChart({
         .style('font-family', 'var(--font-mono, monospace)')
         .text('Motor RPM')
 
-      const torqueLine = d3.line<{ rpm: number; torque: number; power: number }>()
+      const torqueLine = d3.line<TorquePowerPoint>()
         .x(d => x(d.rpm))
         .y(d => yL(d.torque))
 
-      const powerLine = d3.line<{ rpm: number; torque: number; power: number }>()
+      const powerLine = d3.line<TorquePowerPoint>()
         .x(d => x(d.rpm))
         .y(d => yR(d.power))
 
@@ -179,6 +182,52 @@ export default function TimingChart({
         .style('stroke', accentColor)
         .style('stroke-width', '2')
         .style('stroke-dasharray', '6 3')
+
+      // Crosshair and hover dots
+      const crosshair = g.append('line')
+        .attr('y1', 0).attr('y2', innerH)
+        .style('stroke', 'var(--foreground)').style('stroke-width', '1')
+        .style('stroke-dasharray', '3 2').style('opacity', '0')
+        .style('pointer-events', 'none')
+
+      const torqueDot = g.append('circle').attr('r', 4)
+        .style('fill', accentColor).style('stroke', 'var(--surface)').style('stroke-width', '2')
+        .style('opacity', '0').style('pointer-events', 'none')
+
+      const powerDot = g.append('circle').attr('r', 4)
+        .style('fill', 'var(--surface)').style('stroke', accentColor).style('stroke-width', '2')
+        .style('opacity', '0').style('pointer-events', 'none')
+
+      const bisect = d3.bisector((d: TorquePowerPoint) => d.rpm).left
+
+      updateRef.current = (containerX: number) => {
+        const innerX = containerX - margin.left
+        const rpmVal = x.invert(Math.max(0, Math.min(innerW, innerX)))
+        const i = bisect(live, rpmVal, 1, live.length - 1)
+        const pt = rpmVal - live[i - 1].rpm <= live[i].rpm - rpmVal ? live[i - 1] : live[i]
+        const dotX = x(pt.rpm)
+
+        crosshair.attr('x1', dotX).attr('x2', dotX).style('opacity', '0.6')
+        torqueDot.attr('cx', dotX).attr('cy', yL(pt.torque)).style('opacity', '1')
+        powerDot.attr('cx', dotX).attr('cy', yR(pt.power)).style('opacity', '1')
+
+        const tt = tooltipRef.current
+        if (!tt) return
+        tt.innerHTML = `<div>${(pt.rpm / 1000).toFixed(1)}k RPM</div><div>Torque ${pt.torque.toFixed(1)}%</div><div>Power ${pt.power.toFixed(1)}%</div>`
+        const tipW = tt.offsetWidth
+        const rawLeft = margin.left + dotX + 12
+        tt.style.left = `${rawLeft + tipW > width ? Math.max(0, margin.left + dotX - tipW - 12) : rawLeft}px`
+        tt.style.top = `${margin.top + 4}px`
+        tt.style.opacity = '1'
+      }
+
+      hideRef.current = () => {
+        crosshair.style('opacity', '0')
+        torqueDot.style('opacity', '0')
+        powerDot.style('opacity', '0')
+        const tt = tooltipRef.current
+        if (tt) tt.style.opacity = '0'
+      }
     }
 
     draw()
@@ -188,8 +237,31 @@ export default function TimingChart({
   }, [params, revLimitEnabled, revLimitRPM, accentColor, ghostColor])
 
   return (
-    <div ref={containerRef} className="w-full h-full">
+    <div ref={containerRef} className="relative w-full h-full">
       <svg ref={svgRef} />
+      <div
+        className="absolute inset-0 touch-none"
+        onPointerDown={(e) => {
+          if (e.pointerType !== 'mouse') e.currentTarget.setPointerCapture(e.pointerId)
+          updateRef.current?.(e.nativeEvent.offsetX)
+        }}
+        onPointerMove={(e) => updateRef.current?.(e.nativeEvent.offsetX)}
+        onPointerUp={(e) => { if (e.pointerType !== 'mouse') hideRef.current?.() }}
+        onPointerLeave={(e) => { if (e.pointerType === 'mouse') hideRef.current?.() }}
+        onPointerCancel={() => hideRef.current?.()}
+      />
+      <div
+        ref={tooltipRef}
+        className="pointer-events-none absolute z-10 rounded text-[10px] font-mono leading-relaxed opacity-0"
+        style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          color: 'var(--foreground)',
+          padding: '4px 8px',
+          whiteSpace: 'nowrap',
+          transition: 'opacity 80ms',
+        }}
+      />
     </div>
   )
 }

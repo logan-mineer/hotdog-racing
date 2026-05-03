@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import * as d3 from 'd3'
 import { throttleCurve } from '@/lib/esc/model'
-import type { ThrottleCurveParams } from '@/lib/esc/model'
+import type { ThrottleCurveParams, ThrottlePoint } from '@/lib/esc/model'
 
 type Props = {
   params: ThrottleCurveParams
@@ -12,6 +12,9 @@ type Props = {
 export default function ThrottleChart({ params }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  const tooltipRef = useRef<HTMLDivElement>(null)
+  const updateRef = useRef<((containerX: number) => void) | null>(null)
+  const hideRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     const container = containerRef.current
@@ -102,7 +105,7 @@ export default function ThrottleChart({ params }: Props) {
         .text('Motor Power (%)')
 
       // Power curve
-      const line = d3.line<{ stick: number; power: number }>()
+      const line = d3.line<ThrottlePoint>()
         .x(d => x(d.stick))
         .y(d => y(d.power))
 
@@ -112,6 +115,46 @@ export default function ThrottleChart({ params }: Props) {
         .attr('d', line)
         .style('stroke', '#FF0020')
         .style('stroke-width', '2')
+
+      // Crosshair and hover dot
+      const crosshair = g.append('line')
+        .attr('y1', 0).attr('y2', innerH)
+        .style('stroke', 'var(--foreground)').style('stroke-width', '1')
+        .style('stroke-dasharray', '3 2').style('opacity', '0')
+        .style('pointer-events', 'none')
+
+      const dot = g.append('circle').attr('r', 4)
+        .style('fill', '#FF0020').style('stroke', 'var(--surface)').style('stroke-width', '2')
+        .style('opacity', '0').style('pointer-events', 'none')
+
+      const bisect = d3.bisector((d: ThrottlePoint) => d.stick).left
+
+      updateRef.current = (containerX: number) => {
+        const innerX = containerX - margin.left
+        const stickVal = x.invert(Math.max(0, Math.min(innerW, innerX)))
+        const i = bisect(data, stickVal, 1, data.length - 1)
+        const pt = stickVal - data[i - 1].stick <= data[i].stick - stickVal ? data[i - 1] : data[i]
+        const dotX = x(pt.stick)
+
+        crosshair.attr('x1', dotX).attr('x2', dotX).style('opacity', '0.6')
+        dot.attr('cx', dotX).attr('cy', y(pt.power)).style('opacity', '1')
+
+        const tt = tooltipRef.current
+        if (!tt) return
+        tt.innerHTML = `<div>Stick ${pt.stick.toFixed(0)}%</div><div>Power ${pt.power.toFixed(1)}%</div>`
+        const tipW = tt.offsetWidth
+        const rawLeft = margin.left + dotX + 12
+        tt.style.left = `${rawLeft + tipW > width ? Math.max(0, margin.left + dotX - tipW - 12) : rawLeft}px`
+        tt.style.top = `${margin.top + 4}px`
+        tt.style.opacity = '1'
+      }
+
+      hideRef.current = () => {
+        crosshair.style('opacity', '0')
+        dot.style('opacity', '0')
+        const tt = tooltipRef.current
+        if (tt) tt.style.opacity = '0'
+      }
     }
 
     draw()
@@ -121,8 +164,31 @@ export default function ThrottleChart({ params }: Props) {
   }, [params])
 
   return (
-    <div ref={containerRef} className="w-full h-full">
+    <div ref={containerRef} className="relative w-full h-full">
       <svg ref={svgRef} />
+      <div
+        className="absolute inset-0 touch-none"
+        onPointerDown={(e) => {
+          if (e.pointerType !== 'mouse') e.currentTarget.setPointerCapture(e.pointerId)
+          updateRef.current?.(e.nativeEvent.offsetX)
+        }}
+        onPointerMove={(e) => updateRef.current?.(e.nativeEvent.offsetX)}
+        onPointerUp={(e) => { if (e.pointerType !== 'mouse') hideRef.current?.() }}
+        onPointerLeave={(e) => { if (e.pointerType === 'mouse') hideRef.current?.() }}
+        onPointerCancel={() => hideRef.current?.()}
+      />
+      <div
+        ref={tooltipRef}
+        className="pointer-events-none absolute z-10 rounded text-[10px] font-mono leading-relaxed opacity-0"
+        style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          color: 'var(--foreground)',
+          padding: '4px 8px',
+          whiteSpace: 'nowrap',
+          transition: 'opacity 80ms',
+        }}
+      />
     </div>
   )
 }
