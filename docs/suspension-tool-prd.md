@@ -159,7 +159,7 @@ Right-aligned monospace (Geist Mono per site PRD), 0.1° / 0.1mm / integer % pre
 | Kingpin Inclination | ° | Kingpin axis angle vs. vertical (rear plane) |
 | Trail | mm | Distance from kingpin axis to tire contact center, along ground |
 | Scrub radius | mm | Distance from kingpin axis to tire centerline, at ground |
-| Ackerman % | % | At full lock, ratio of inside-to-outside wheel turning |
+| Ackerman | ° | At full lock, |inner| − |outer| wheel angle. 0° = parallel; positive = inner turns more (Ackermann). A true % would require wheelbase + track, which v1 does not carry. |
 | Max steering lock | ° | Maximum achievable lock; warning if knuckle pivot blocks 90° |
 | Bump steer rate | ° toe per mm bump | Rate of toe change with suspension travel |
 | Dynamic camber gain | ° camber per mm bump | Rate of camber change with suspension travel |
@@ -190,7 +190,7 @@ This is dramatically cheaper to implement and verify than a full 3D kinematic so
 |---|---|---|
 | `computeBumpSteer` | tie rod geometry, lower arm geometry, rack position | ° toe per mm bump |
 | `computeDynamicCamberGain` | upper/lower arm lengths, block geometry | ° camber per mm bump |
-| `computeAckermanPercent` | tie rod attach point, rack position, rack type | % at full lock |
+| `computeAckermanDelta` | steering snapshot (kingpins, baseline attaches, rack balls, tie rod length, rack travel, rack type) | ° at full lock: |inner| − |outer| |
 | `computeMaxSteeringLock` | tie rod length, rack travel, knuckle pickup | ° max lock (or `lockBlocked: true`) |
 | `computeScrubRadius` | wheel offset, hex thickness, KPI, tire OD | mm at ground |
 | `computeTrail` | caster, KPI, wheel offset, tire OD | mm at ground |
@@ -286,8 +286,8 @@ Test coverage targets the deep modules. Component rendering is verified visually
 
 ### `lib/suspension/model.ts` (extensive)
 
-- Each derived alignment value (camber, caster, toe, KPI, trail, scrub, ackerman %, max lock) at known inputs against hand-computed expected values
-- Each bridge function (`computeBumpSteer`, `computeDynamicCamberGain`, `computeAckermanPercent`, `computeMaxSteeringLock`, `computeScrubRadius`, `computeTrail`) at known inputs
+- Each derived alignment value (camber, caster, toe, KPI, trail, scrub, ackerman delta, max lock) at known inputs against hand-computed expected values
+- Each bridge function (`computeBumpSteer`, `computeDynamicCamberGain`, `computeAckermanDelta`, `computeMaxSteeringLock`, `computeScrubRadius`, `computeTrail`) at known inputs
 - Each `GeometryError` variant — verify it triggers when expected, doesn't when geometry is valid
 - Boundary cases: zero arm angles, vertical kingpin (KPI = 0), zero caster, zero steering input, neutral travel
 - Property tests: monotonicity (e.g. lower arm length increasing → camber more negative across a valid range)

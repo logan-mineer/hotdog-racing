@@ -43,6 +43,22 @@ export default function ReadoutPanel({ geometry }: Props) {
         label="Toe (R)"
         value={`${geometry.top.toeDegRight.toFixed(PRECISION.angleDeg)}°`}
       />
+      <Readout
+        label="Ackerman"
+        value={`${geometry.ackermanDeltaDeg.toFixed(PRECISION.angleDeg)}°`}
+      />
+      <Readout
+        label="Max Steering Lock"
+        value={`${geometry.maxSteeringLock.degrees.toFixed(PRECISION.angleDeg)}°`}
+      />
+      {geometry.maxSteeringLock.blocked && (
+        <p
+          className="mt-2 font-mono text-xs"
+          style={{ color: '#FF0020' }}
+        >
+          {geometry.maxSteeringLock.reason}
+        </p>
+      )}
     </div>
   )
 }

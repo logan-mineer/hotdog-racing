@@ -3,18 +3,22 @@
 // No React imports, no side effects.
 
 import { CHASSIS_BASELINE } from './config'
-import type { ChassisBaseline } from './config'
+import type { ChassisBaseline, RackType } from './config'
 
 export type Point = { x: number; y: number }
 
 export type Setup = {
   lowerArmLength: number
   tieRodLength: number
-  upperArmLength: number          // chassis config in PRD; same data layer as setup in v1
-  casterSpacerDeg: number         // 0–15° spacer stack on upper hinge pin; sets caster directly in v1
-  wheelHexThicknessMm: number     // hub spacer between carrier and rim; always positive
-  wheelOffsetMm: number           // rim's lateral offset from its mounting face; signed
-  tireOD: number                  // chassis config in PRD; surfaced inline until #89
+  upperArmLength: number              // chassis config in PRD; same data layer as setup in v1
+  casterSpacerDeg: number             // 0–15° spacer stack on upper hinge pin; sets caster directly in v1
+  wheelHexThicknessMm: number         // hub spacer between carrier and rim; always positive
+  wheelOffsetMm: number               // rim's lateral offset from its mounting face; signed
+  tireOD: number                      // chassis config in PRD; surfaced inline until #89
+  carrierTieRodInboardOffsetMm: number // signed; positive = tie rod attach moves further inboard from kingpin
+  steeringRackForeAftMm: number       // signed; positive = rack moves forward
+  carrierHeightMm: number             // chassis config in PRD; height of wheel hub along kingpin from lower ball
+  steeringRackType: RackType          // chassis config in PRD; affects effective rack travel
 }
 
 export type RearGeometry = {
@@ -44,6 +48,12 @@ export type TopGeometry = {
   toeDegLeft: number
 }
 
+export type MaxSteeringLockResult = {
+  degrees: number   // best achievable lock magnitude on the right wheel
+  blocked: boolean  // true if rack reaches travel limit before tie rod can satisfy the geometry
+  reason: string    // human-readable explanation when blocked, empty otherwise
+}
+
 export type Geometry = {
   rear: RearGeometry
   top: TopGeometry
@@ -52,6 +62,8 @@ export type Geometry = {
   casterDeg: number          // side-plane kingpin tilt; v1 = casterSpacerDeg
   trailMm: number            // caster trail at the tire contact patch
   scrubRadiusMm: number      // signed: positive = wheel contact outboard of kingpin axis at ground
+  ackermanDeltaDeg: number   // |inner| − |outer| at full lock; 0° = parallel, positive = inner turns more
+  maxSteeringLock: MaxSteeringLockResult
 }
 
 // Intersect two circles in 2D. Returns the intersection point on the side
@@ -118,18 +130,20 @@ function computeRearGeometry(setup: Setup, chassis: ChassisBaseline): RearGeomet
   // wheel offset displaces the wheel center off the kingpin axis.
   const kpiDeg = -camberDeg
 
-  // Wheel center sits at perpendicular offset (hex + wheelOffset) from the
-  // kingpin axis, on the outboard side (right wheel). Perpendicular outboard
-  // in the rear plane = the kingpin direction rotated -90°: (cos(camber), -sin(camber)).
+  // Wheel center sits along the kingpin axis at carrierHeightMm above the
+  // lower ball, then perpendicular-outboard from there by (hex + wheelOffset).
+  // Perpendicular outboard in the rear plane = kingpin direction rotated -90°:
+  // (cos(camber), -sin(camber)).
   const camberRad = (camberDeg * Math.PI) / 180
   const lateralOffset = setup.wheelHexThicknessMm + setup.wheelOffsetMm
-  const kingpinMidpoint: Point = {
-    x: (lowerOutboard.x + upperOutboard.x) / 2,
-    y: (lowerOutboard.y + upperOutboard.y) / 2,
+  const t = setup.carrierHeightMm / chassis.knuckleLength
+  const kingpinAtCarrierHeight: Point = {
+    x: lowerOutboard.x + t * (upperOutboard.x - lowerOutboard.x),
+    y: lowerOutboard.y + t * (upperOutboard.y - lowerOutboard.y),
   }
   const wheelCenter: Point = {
-    x: kingpinMidpoint.x + lateralOffset * Math.cos(camberRad),
-    y: kingpinMidpoint.y - lateralOffset * Math.sin(camberRad),
+    x: kingpinAtCarrierHeight.x + lateralOffset * Math.cos(camberRad),
+    y: kingpinAtCarrierHeight.y - lateralOffset * Math.sin(camberRad),
   }
 
   return { lowerInboard, lowerOutboard, upperInboard, upperOutboard, wheelCenter, camberDeg, kpiDeg }
@@ -183,11 +197,18 @@ function computeTopGeometry(
   // baseline angle are measured around this midpoint.
   const kingpinMidX = (rear.lowerOutboard.x + rear.upperOutboard.x) / 2
   const kingpin: Point = { x: kingpinMidX, y: 0 }
+  // Carrier tie rod inboard offset shifts the knuckle attach toward the
+  // chassis centerline. For the right side, "inboard" is the −x direction,
+  // so a positive offset subtracts from the baseline X coordinate.
   const baselineAttach: Point = {
-    x: kingpin.x + chassis.knuckleTieRodOffsetX,
+    x: kingpin.x + chassis.knuckleTieRodOffsetX - setup.carrierTieRodInboardOffsetMm,
     y: kingpin.y + chassis.knuckleTieRodOffsetY,
   }
-  const rackBall: Point = { x: chassis.rackBallX, y: chassis.rackBallY }
+  // Steering rack fore/aft slides the entire rack along the chassis longitudinal axis.
+  const rackBall: Point = {
+    x: chassis.rackBallX,
+    y: chassis.rackBallY + setup.steeringRackForeAftMm,
+  }
   const knuckleRadius = Math.hypot(
     baselineAttach.x - kingpin.x,
     baselineAttach.y - kingpin.y,
@@ -266,6 +287,181 @@ export function computeScrubRadius(
   return lateral / Math.cos(kpiRad) - (tireOD / 2) * Math.tan(kpiRad)
 }
 
+export type SteeringSnapshot = {
+  rightKingpin: Point
+  rightBaselineAttach: Point
+  rightRackBall: Point
+  leftKingpin: Point
+  leftBaselineAttach: Point
+  leftRackBall: Point
+  tieRodLength: number
+  rackTravelMm: number     // raw chassis travel limit
+  rackType: RackType
+}
+
+// Wiper rack pivots, so the rack balls trace an arc rather than a line —
+// effective lateral travel at the balls is reduced versus the linear
+// rack-shaft displacement. Direct drive and slide rack are linear.
+function effectiveRackTravel(rackTravelMm: number, rackType: RackType): number {
+  return rackType === 'wiper' ? 0.9 * rackTravelMm : rackTravelMm
+}
+
+function knuckleRotationDeg(
+  kingpin: Point,
+  baselineAttach: Point,
+  rackBallShifted: Point,
+  tieRodLength: number,
+): number {
+  const knuckleRadius = Math.hypot(
+    baselineAttach.x - kingpin.x,
+    baselineAttach.y - kingpin.y,
+  )
+  const newAttach = intersectClosestToBaseline(
+    kingpin,
+    knuckleRadius,
+    rackBallShifted,
+    tieRodLength,
+    baselineAttach,
+  )
+  const baselineAngle = Math.atan2(baselineAttach.y - kingpin.y, baselineAttach.x - kingpin.x)
+  const newAngle = Math.atan2(newAttach.y - kingpin.y, newAttach.x - kingpin.x)
+  let dRad = newAngle - baselineAngle
+  if (dRad > Math.PI) dRad -= 2 * Math.PI
+  if (dRad <= -Math.PI) dRad += 2 * Math.PI
+  return dRad * (180 / Math.PI)
+}
+
+function rackOutOfReach(kingpin: Point, baselineAttach: Point, rackBall: Point, tieRodLength: number): boolean {
+  const knuckleRadius = Math.hypot(
+    baselineAttach.x - kingpin.x,
+    baselineAttach.y - kingpin.y,
+  )
+  const d = Math.hypot(rackBall.x - kingpin.x, rackBall.y - kingpin.y)
+  return d < Math.abs(tieRodLength - knuckleRadius) || d > tieRodLength + knuckleRadius
+}
+
+function bothSidesReachable(snapshot: SteeringSnapshot, offset: number): boolean {
+  const rightOK = !rackOutOfReach(
+    snapshot.rightKingpin,
+    snapshot.rightBaselineAttach,
+    { x: snapshot.rightRackBall.x + offset, y: snapshot.rightRackBall.y },
+    snapshot.tieRodLength,
+  )
+  const leftOK = !rackOutOfReach(
+    snapshot.leftKingpin,
+    snapshot.leftBaselineAttach,
+    { x: snapshot.leftRackBall.x + offset, y: snapshot.leftRackBall.y },
+    snapshot.tieRodLength,
+  )
+  return rightOK && leftOK
+}
+
+// Largest |offset| within ±chassis-travel where both linkages can satisfy
+// their constraints. When the chassis travel limit is itself reachable, that
+// is returned directly; otherwise a bisection finds the binding limit. Both
+// bridge readouts use this so the inner/outer comparison is always defined.
+function maxAchievableRackOffset(snapshot: SteeringSnapshot, sign: 1 | -1): number {
+  const limit = sign * effectiveRackTravel(snapshot.rackTravelMm, snapshot.rackType)
+  if (bothSidesReachable(snapshot, limit)) return limit
+  let lo = 0
+  let hi = limit
+  for (let i = 0; i < 30; i++) {
+    const mid = (lo + hi) / 2
+    if (bothSidesReachable(snapshot, mid)) lo = mid
+    else hi = mid
+  }
+  return lo
+}
+
+// Ackerman delta — signed angular difference between the inner and outer wheel
+// at full lock, in degrees. 0° = parallel steering; positive = inner wheel
+// turns more than outer (Ackermann); negative would imply outer turns more
+// (geometrically uncommon in front-steer drift cars and not produced by the
+// linkages this tool models). Reported in degrees rather than as a percentage
+// because a true % requires wheelbase + track, which the tool does not carry.
+export function computeAckermanDelta(snapshot: SteeringSnapshot): number {
+  const δ = maxAchievableRackOffset(snapshot, 1)
+  const rotR = knuckleRotationDeg(
+    snapshot.rightKingpin,
+    snapshot.rightBaselineAttach,
+    { x: snapshot.rightRackBall.x + δ, y: snapshot.rightRackBall.y },
+    snapshot.tieRodLength,
+  )
+  const rotL = knuckleRotationDeg(
+    snapshot.leftKingpin,
+    snapshot.leftBaselineAttach,
+    { x: snapshot.leftRackBall.x + δ, y: snapshot.leftRackBall.y },
+    snapshot.tieRodLength,
+  )
+  const inner = Math.max(Math.abs(rotR), Math.abs(rotL))
+  const outer = Math.min(Math.abs(rotR), Math.abs(rotL))
+  return inner - outer
+}
+
+// Max steering lock — the inner-wheel rotation magnitude at the largest rack
+// offset where both linkages can satisfy their constraints. `blocked` flags
+// the case where the chassis-spec'd travel exceeds what the linkage can
+// physically reach, with the PRD's pivot-outboard message as the educational
+// explanation.
+export function computeMaxSteeringLock(snapshot: SteeringSnapshot): MaxSteeringLockResult {
+  const limit = effectiveRackTravel(snapshot.rackTravelMm, snapshot.rackType)
+  const δ = maxAchievableRackOffset(snapshot, 1)
+  const blocked = Math.abs(δ) < Math.abs(limit) - 1e-6
+  const rotR = knuckleRotationDeg(
+    snapshot.rightKingpin,
+    snapshot.rightBaselineAttach,
+    { x: snapshot.rightRackBall.x + δ, y: snapshot.rightRackBall.y },
+    snapshot.tieRodLength,
+  )
+  const rotL = knuckleRotationDeg(
+    snapshot.leftKingpin,
+    snapshot.leftBaselineAttach,
+    { x: snapshot.leftRackBall.x + δ, y: snapshot.leftRackBall.y },
+    snapshot.tieRodLength,
+  )
+  return {
+    degrees: Math.max(Math.abs(rotR), Math.abs(rotL)),
+    blocked,
+    reason: blocked
+      ? 'max lock blocked: pivot is outboard of the wheel — increase hex thickness'
+      : '',
+  }
+}
+
+function buildSteeringSnapshot(
+  setup: Setup,
+  rear: RearGeometry,
+  top: TopGeometry,
+  chassis: ChassisBaseline,
+): SteeringSnapshot {
+  const rightKingpin: Point = {
+    x: (rear.lowerOutboard.x + rear.upperOutboard.x) / 2,
+    y: 0,
+  }
+  const leftKingpin: Point = { x: -rightKingpin.x, y: 0 }
+  const rightBaselineAttach: Point = {
+    x: rightKingpin.x + chassis.knuckleTieRodOffsetX - setup.carrierTieRodInboardOffsetMm,
+    y: chassis.knuckleTieRodOffsetY,
+  }
+  const leftBaselineAttach: Point = {
+    x: -rightBaselineAttach.x,
+    y: rightBaselineAttach.y,
+  }
+  const rightRackBall = top.rackBall
+  const leftRackBall: Point = { x: -rightRackBall.x, y: rightRackBall.y }
+  return {
+    rightKingpin,
+    rightBaselineAttach,
+    rightRackBall,
+    leftKingpin,
+    leftBaselineAttach,
+    leftRackBall,
+    tieRodLength: setup.tieRodLength,
+    rackTravelMm: chassis.maxRackTravelMm,
+    rackType: setup.steeringRackType,
+  }
+}
+
 export function computeGeometry(
   setup: Setup,
   chassis: ChassisBaseline = CHASSIS_BASELINE,
@@ -280,5 +476,18 @@ export function computeGeometry(
     rear.kpiDeg,
     setup.tireOD,
   )
-  return { rear, top, chassis, setup, casterDeg, trailMm, scrubRadiusMm }
+  const snapshot = buildSteeringSnapshot(setup, rear, top, chassis)
+  const ackermanDeltaDeg = computeAckermanDelta(snapshot)
+  const maxSteeringLock = computeMaxSteeringLock(snapshot)
+  return {
+    rear,
+    top,
+    chassis,
+    setup,
+    casterDeg,
+    trailMm,
+    scrubRadiusMm,
+    ackermanDeltaDeg,
+    maxSteeringLock,
+  }
 }

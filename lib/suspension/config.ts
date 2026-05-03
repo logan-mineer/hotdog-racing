@@ -9,6 +9,16 @@ export type SliderDef = {
   defaultValue: number
 }
 
+export type RackType = 'wiper' | 'direct-drive' | 'slide-rack'
+
+export const RACK_TYPES: readonly RackType[] = ['wiper', 'direct-drive', 'slide-rack']
+
+export const RACK_TYPE_LABELS: Record<RackType, string> = {
+  wiper: 'Wiper',
+  'direct-drive': 'Direct Drive',
+  'slide-rack': 'Slide Rack',
+}
+
 export type ChassisBaseline = {
   // Rear-view plane (y = 0 is ground, +y up, +x is outboard from chassis centerline).
   // Right side of the car; left side mirrors.
@@ -33,6 +43,7 @@ export type ChassisBaseline = {
   rackBallY: number              // rack ball y position (negative = behind front axle)
   knuckleTieRodOffsetX: number   // tie rod attach offset from kingpin in baseline knuckle frame
   knuckleTieRodOffsetY: number
+  maxRackTravelMm: number        // max lateral travel of the rack from neutral, at full lock
 }
 
 // Driver-tunable
@@ -41,11 +52,16 @@ export const TIE_ROD_LENGTH: SliderDef = { min: 30, max: 50, step: 0.5, defaultV
 export const CASTER_SPACER: SliderDef = { min: 0, max: 15, step: 1, defaultValue: 0 }
 export const WHEEL_HEX_THICKNESS: SliderDef = { min: 0, max: 10, step: 1, defaultValue: 5 }
 export const WHEEL_OFFSET: SliderDef = { min: -5, max: 15, step: 0.5, defaultValue: 0 }
+export const CARRIER_TIE_ROD_INBOARD_OFFSET: SliderDef = { min: -3, max: 3, step: 0.5, defaultValue: 0 }
+export const STEERING_RACK_FORE_AFT: SliderDef = { min: -10, max: 10, step: 0.5, defaultValue: 0 }
 
 // Chassis config — mirror-symmetric, persists per chassis. Inline in the
 // Setup panel for now; the dedicated Advanced collapse lands in #89.
 export const UPPER_ARM_LENGTH: SliderDef = { min: 35, max: 55, step: 0.5, defaultValue: 45 }
 export const TIRE_OD: SliderDef = { min: 50, max: 70, step: 0.5, defaultValue: 60 }
+// CARRIER_HEIGHT_MM is the wheel-hub height along the kingpin axis above the
+// lower kingpin ball. Default = knuckleLength/2 (hub at midpoint).
+export const CARRIER_HEIGHT: SliderDef = { min: 10, max: 35, step: 0.5, defaultValue: 22.5 }
 
 // Chassis baseline. Engineered so that at default LOWER_ARM_LENGTH the kingpin is
 // vertical (camber = 0°) and the wheel sits with its bottom at ground.
@@ -66,6 +82,7 @@ export const CHASSIS_BASELINE: ChassisBaseline = {
   rackBallY: -10,                // TODO
   knuckleTieRodOffsetX: -10,     // TODO
   knuckleTieRodOffsetY: -10,     // TODO
+  maxRackTravelMm: 5,            // TODO
 }
 
 // Decimal precision for readouts (per PRD: 0.1° / 0.1mm / integer %)
