@@ -1,10 +1,12 @@
+import Wordmark from '@/components/Wordmark'
+
 export default function Footer() {
   const year = new Date().getFullYear()
   return (
     <footer className="border-t py-6" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6">
-        <span className="text-sm" style={{ color: 'var(--muted)' }}>
-          © {year} Hotdog Racing
+        <span className="text-base" style={{ color: 'var(--muted)' }}>
+          © {year} <Wordmark />
         </span>
         <a
           href="https://www.instagram.com/hotdogracingus"

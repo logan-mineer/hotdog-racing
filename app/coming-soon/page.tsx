@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Wordmark from '@/components/Wordmark'
 
 export const metadata: Metadata = {
   title: 'Coming Soon | Hotdog Racing',
@@ -11,8 +12,8 @@ export default function ComingSoonPage() {
       <p className="mb-4 font-mono text-xs tracking-[0.3em] text-accent uppercase">
         Coming Soon
       </p>
-      <h1 className="mb-4 text-5xl font-bold tracking-tight text-near-white sm:text-7xl">
-        HOTDOG<span className="text-accent">RACING</span>
+      <h1 className="mb-4 text-6xl tracking-tight text-near-white sm:text-8xl">
+        <Wordmark />
       </h1>
       <p className="mb-10 max-w-sm text-base text-near-white/60">
         Setup tools and content for RC drift. Something worth waiting for.

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
+import Wordmark from '@/components/Wordmark'
 
 const tools = [
   { label: 'Suspension Alignment', href: '/tools/suspension' },
@@ -45,8 +46,8 @@ export default function Nav() {
 
       <nav className="sticky top-0 z-50 w-full border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-          <Link href="/" className="text-lg font-bold tracking-tight" style={{ color: 'var(--foreground)' }}>
-            HOTDOG<span className="text-accent">RACING</span>
+          <Link href="/" className="text-2xl tracking-tight" style={{ color: 'var(--foreground)' }}>
+            <Wordmark />
           </Link>
 
           {/* Desktop nav */}

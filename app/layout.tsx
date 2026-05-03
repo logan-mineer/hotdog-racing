@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Calistoga, Geist, Geist_Mono, Yellowtail } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/react'
 import Nav from '@/components/Nav'
 import Footer from '@/components/Footer'
@@ -12,6 +12,18 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
+  subsets: ['latin'],
+})
+
+const calistoga = Calistoga({
+  variable: '--font-calistoga',
+  weight: '400',
+  subsets: ['latin'],
+})
+
+const yellowtail = Yellowtail({
+  variable: '--font-yellowtail',
+  weight: '400',
   subsets: ['latin'],
 })
 
@@ -45,7 +57,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${calistoga.variable} ${yellowtail.variable} antialiased`}
     >
       <body className="flex min-h-screen flex-col">
         <Nav />

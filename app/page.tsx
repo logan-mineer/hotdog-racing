@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Sponsors from '@/components/Sponsors'
 import LatestEpisode from '@/components/LatestEpisode'
+import Wordmark from '@/components/Wordmark'
 import { EscBlueprint, GyroBlueprint, SuspensionBlueprint } from '@/components/Blueprints'
 import { fetchEpisodes, type Episode } from '@/lib/youtube/fetch'
 import { getAllPosts } from '@/lib/blog/posts'
@@ -115,7 +116,9 @@ function HeroSection() {
       </div>
       <div className="relative z-10 px-6">
         <p className="mb-4 font-mono text-xs tracking-[0.3em] text-accent-500 uppercase">RC Drift</p>
-        <h1 className="mb-4 text-5xl font-bold tracking-tight text-near-white sm:text-7xl">Hotdog Racing</h1>
+        <h1 className="mb-4 text-6xl tracking-tight text-near-white sm:text-8xl">
+          <Wordmark />
+        </h1>
         <p className="mb-8 text-lg text-near-white/60 sm:text-xl">Setup tools and content for RC drift.</p>
         <Link
           href="/tools"
