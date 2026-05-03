@@ -1,4 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#FF0020"/>
-  <text x="256" y="330" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="220" font-weight="bold" fill="#F5F5F5">HR</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" fill="#FF0020"/>
+  <g transform="translate(8 8) scale(0.75)">
+    <path fill="#F5F5F5" d="M49.92.962a7.17 7.17 0 0 0-9.792 2.623l-9.485 16.43 19.583-5.248 2.318-4.014A7.17 7.17 0 0 0 49.92.962M38.576 2.689a7.17 7.17 0 0 0-9.791 2.624L7.28 42.559a7.17 7.17 0 0 0 2.623 9.792zm15.52 8.96L25.424 61.311a7.17 7.17 0 0 0 9.791-2.624L56.72 21.441a7.17 7.17 0 0 0-2.623-9.792m-6.404 7.507L28.11 24.404l-11.801 20.44 19.583-5.248zm-14.335 24.83-19.583 5.247-2.318 4.014a7.168 7.168 0 0 0 12.416 7.168z"/>
+  </g>
 </svg>

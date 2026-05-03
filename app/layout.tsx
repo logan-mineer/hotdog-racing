@@ -35,6 +35,10 @@ export const metadata: Metadata = {
   description: 'Setup tools and content for RC drift.',
   metadataBase: new URL('https://hotdog-racing.com'),
   manifest: '/manifest.json',
+  icons: {
+    icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
+    apple: '/icon.svg',
+  },
   openGraph: {
     title: 'Hotdog Racing',
     description: 'Setup tools and content for RC drift.',

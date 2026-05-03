@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Sponsors from '@/components/Sponsors'
 import LatestEpisode from '@/components/LatestEpisode'
+import Logo from '@/components/Logo'
 import Wordmark from '@/components/Wordmark'
 import { EscBlueprint, GyroBlueprint, SuspensionBlueprint } from '@/components/Blueprints'
 import { fetchEpisodes, type Episode } from '@/lib/youtube/fetch'
@@ -116,9 +117,14 @@ function HeroSection() {
       </div>
       <div className="relative z-10 px-6">
         <p className="mb-4 font-mono text-xs tracking-[0.3em] text-accent-500 uppercase">RC Drift</p>
-        <h1 className="mb-4 text-6xl tracking-tight text-near-white sm:text-8xl">
-          <Wordmark />
-        </h1>
+        <div className="relative mx-auto mb-4 inline-block">
+          <Logo className="block h-72 w-auto sm:h-100" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <h1 className="text-5xl tracking-tight text-near-white sm:text-7xl" style={{ filter: 'drop-shadow(2px 0 0.5px #000) drop-shadow(-2px 0 0.5px #000) drop-shadow(0 2px 0.5px #000) drop-shadow(0 -2px 0.5px #000) drop-shadow(2px 2px 0.5px #000) drop-shadow(-2px -2px 0.5px #000) drop-shadow(2px -2px 0.5px #000) drop-shadow(-2px 2px 0.5px #000)' }}>
+              <Wordmark stacked />
+            </h1>
+          </div>
+        </div>
         <p className="mb-8 text-lg text-near-white/60 sm:text-xl">Setup tools and content for RC drift.</p>
         <Link
           href="/tools"
