@@ -5,17 +5,23 @@ import {
   BOOST_END_RPM,
   BOOST_START_RPM,
   BOOST_TIMING,
+  BRAKE_FREQUENCY_KHZ,
   DRIVE_FREQUENCY_KHZ,
   FREE_ZONE_ADJUST,
+  FULL_BRAKE_POWER,
+  INITIAL_BRAKE_POWER,
   INITIAL_SPEED,
   MOTOR_CAN_TIMING,
   MOTOR_TURN,
+  NEUTRAL_BRAKE_FREQUENCY_KHZ,
+  NEUTRAL_BRAKE_POWER,
   REV_LIMIT_RPM,
   THROTTLE_CURVE,
   TURBO_TIMING,
 } from '@/lib/esc/config'
 import type { ThrottleCurveMode } from '@/lib/esc/config'
 import { effectiveTiming, motorKV, torquePowerCurve } from '@/lib/esc/model'
+import BrakeChart from './BrakeChart'
 import ThrottleChart from './ThrottleChart'
 import TimingChart from './TimingChart'
 
@@ -59,14 +65,32 @@ const THROTTLE_DEFAULTS: ThrottleState = {
   driveFrequency: DRIVE_FREQUENCY_KHZ.defaultValue,
 }
 
+type BrakeState = {
+  neutralBrakePower: number
+  initialBrakePower: number
+  fullBrakePower: number
+  neutralBrakeFrequency: number
+  brakeFrequency: number
+}
+
+const BRAKE_DEFAULTS: BrakeState = {
+  neutralBrakePower: NEUTRAL_BRAKE_POWER.defaultValue,
+  initialBrakePower: INITIAL_BRAKE_POWER.defaultValue,
+  fullBrakePower: FULL_BRAKE_POWER.defaultValue,
+  neutralBrakeFrequency: NEUTRAL_BRAKE_FREQUENCY_KHZ.defaultValue,
+  brakeFrequency: BRAKE_FREQUENCY_KHZ.defaultValue,
+}
+
 const LS_KEY = 'esc-tool-settings'
 
 export default function EscTool() {
   const [tab, setTab] = useState<Tab>('timing')
   const [timing, setTiming] = useState<TimingState>(TIMING_DEFAULTS)
   const [throttle, setThrottleState] = useState<ThrottleState>(THROTTLE_DEFAULTS)
+  const [brake, setBrakeState] = useState<BrakeState>(BRAKE_DEFAULTS)
   const skipFirstWrite = useRef(true)
   const skipFirstThrottleWrite = useRef(true)
+  const skipFirstBrakeWrite = useRef(true)
 
   // Restore from localStorage on mount
   useEffect(() => {
@@ -151,12 +175,55 @@ export default function EscTool() {
     }
   }, [throttle])
 
+  // Restore brake state from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, unknown>
+        if (parsed.braking && typeof parsed.braking === 'object') {
+          const b = parsed.braking as Record<string, unknown>
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setBrakeState(prev => ({
+            ...prev,
+            ...(typeof b.neutralBrakePower === 'number' ? { neutralBrakePower: b.neutralBrakePower } : {}),
+            ...(typeof b.initialBrakePower === 'number' ? { initialBrakePower: b.initialBrakePower } : {}),
+            ...(typeof b.fullBrakePower === 'number' ? { fullBrakePower: b.fullBrakePower } : {}),
+            ...(typeof b.neutralBrakeFrequency === 'number' ? { neutralBrakeFrequency: b.neutralBrakeFrequency } : {}),
+            ...(typeof b.brakeFrequency === 'number' ? { brakeFrequency: b.brakeFrequency } : {}),
+          }))
+        }
+      }
+    } catch {
+      // ignore malformed storage
+    }
+  }, [])
+
+  // Persist brake state to localStorage on change
+  useEffect(() => {
+    if (skipFirstBrakeWrite.current) {
+      skipFirstBrakeWrite.current = false
+      return
+    }
+    try {
+      const existing = localStorage.getItem(LS_KEY)
+      const current = existing ? (JSON.parse(existing) as Record<string, unknown>) : {}
+      localStorage.setItem(LS_KEY, JSON.stringify({ ...current, braking: brake }))
+    } catch {
+      // ignore
+    }
+  }, [brake])
+
   function set<K extends keyof TimingState>(key: K, value: TimingState[K]) {
     setTiming(prev => ({ ...prev, [key]: value }))
   }
 
   function setThrottle<K extends keyof ThrottleState>(key: K, value: ThrottleState[K]) {
     setThrottleState(prev => ({ ...prev, [key]: value }))
+  }
+
+  function setBrake<K extends keyof BrakeState>(key: K, value: BrakeState[K]) {
+    setBrakeState(prev => ({ ...prev, [key]: value }))
   }
 
   const kv = Math.round(motorKV(timing.motorTurn))
@@ -199,6 +266,12 @@ export default function EscTool() {
     freeZoneAdjust: throttle.freeZoneAdjust,
     throttleCurve: throttle.throttleCurve,
   }), [throttle.initialSpeed, throttle.freeZoneAdjust, throttle.throttleCurve])
+
+  const brakeChartParams = useMemo(() => ({
+    neutralBrakePower: brake.neutralBrakePower,
+    initialBrakePower: brake.initialBrakePower,
+    fullBrakePower: brake.fullBrakePower,
+  }), [brake.neutralBrakePower, brake.initialBrakePower, brake.fullBrakePower])
 
   const tabs: Tab[] = ['timing', 'throttle', 'braking']
 
@@ -454,18 +527,100 @@ export default function EscTool() {
           </div>
         )}
 
-        {/* Braking tab placeholder */}
+        {/* Braking tab */}
         {tab === 'braking' && (
-          <div
-            className="rounded-lg border p-12 text-center"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-          >
-            <p className="mb-2 font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--muted)' }}>
-              Coming next
-            </p>
-            <p className="text-sm" style={{ color: 'var(--muted)' }}>
-              Brake curve — in progress.
-            </p>
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+            {/* Parameter panel */}
+            <div
+              className="w-full shrink-0 rounded-lg border p-5 lg:w-80"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+            >
+              <Slider
+                label="Neutral Brake Power"
+                value={brake.neutralBrakePower}
+                min={NEUTRAL_BRAKE_POWER.min}
+                max={NEUTRAL_BRAKE_POWER.max}
+                step={NEUTRAL_BRAKE_POWER.step}
+                display={v => `${v}%`}
+                onChange={v => setBrake('neutralBrakePower', v)}
+              />
+              <Slider
+                label="Initial Brake Power"
+                value={brake.initialBrakePower}
+                min={INITIAL_BRAKE_POWER.min}
+                max={INITIAL_BRAKE_POWER.max}
+                step={INITIAL_BRAKE_POWER.step}
+                display={v => `${v}%`}
+                onChange={v => setBrake('initialBrakePower', v)}
+              />
+              <Slider
+                label="Full Brake Power"
+                value={brake.fullBrakePower}
+                min={FULL_BRAKE_POWER.min}
+                max={FULL_BRAKE_POWER.max}
+                step={FULL_BRAKE_POWER.step}
+                display={v => `${v}%`}
+                onChange={v => setBrake('fullBrakePower', v)}
+              />
+
+              {/* Neutral brake frequency selector */}
+              <div className="mb-5">
+                <div className="mb-2 flex items-baseline justify-between">
+                  <span className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+                    Neutral Brake Freq
+                  </span>
+                  <span className="font-mono text-sm" style={{ color: 'var(--foreground)' }}>
+                    {brake.neutralBrakeFrequency} kHz
+                  </span>
+                </div>
+                <select
+                  value={brake.neutralBrakeFrequency}
+                  onChange={e => setBrake('neutralBrakeFrequency', Number(e.target.value))}
+                  className="w-full rounded border px-3 py-2 font-mono text-sm"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--foreground)' }}
+                >
+                  {NEUTRAL_BRAKE_FREQUENCY_KHZ.options.map(f => (
+                    <option key={f} value={f}>{f} kHz</option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
+                  Lower = quicker braking · Higher = smoother
+                </p>
+              </div>
+
+              {/* Brake frequency selector */}
+              <div className="mb-5">
+                <div className="mb-2 flex items-baseline justify-between">
+                  <span className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+                    Brake Frequency
+                  </span>
+                  <span className="font-mono text-sm" style={{ color: 'var(--foreground)' }}>
+                    {brake.brakeFrequency} kHz
+                  </span>
+                </div>
+                <select
+                  value={brake.brakeFrequency}
+                  onChange={e => setBrake('brakeFrequency', Number(e.target.value))}
+                  className="w-full rounded border px-3 py-2 font-mono text-sm"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--foreground)' }}
+                >
+                  {BRAKE_FREQUENCY_KHZ.options.map(f => (
+                    <option key={f} value={f}>{f} kHz</option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
+                  Lower = quicker braking · Higher = smoother
+                </p>
+              </div>
+            </div>
+
+            {/* Chart */}
+            <div
+              className="relative h-72 flex-1 overflow-hidden rounded-lg border sm:h-96"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+            >
+              <BrakeChart params={brakeChartParams} />
+            </div>
           </div>
         )}
       </div>
